@@ -1,0 +1,14 @@
+ASSETS LICENSE (placeholder)
+
+This file covers the 3D body asset only. The application code is covered by
+the MIT license in LICENSE.
+
+The 3D segmented body asset for WhereItHurts will be derived from BodyParts3D
+(Database Center for Life Science) and related open anatomy sources
+(Z-Anatomy, Open3DModel), which are licensed under CC BY-SA. The derived
+asset will therefore be distributed under CC BY-SA with attribution.
+
+The final attribution text (source names, license links, and a description of
+modifications) will be added to this file when the derived asset is
+integrated. Until then, the app uses a placeholder primitive figure that is
+original to this repository and carries no third-party license obligations.
