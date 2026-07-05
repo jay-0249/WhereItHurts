@@ -83,6 +83,13 @@ interface SessionState {
   deletePin: (pinId: string) => void;
 }
 
+declare global {
+  interface Window {
+    /** dev-only hook for the headless visual-verification script */
+    __wih?: typeof useSession;
+  }
+}
+
 export const useSession = create<SessionState>()(
   persist(
     (set, get) => ({
@@ -160,3 +167,7 @@ export const useSession = create<SessionState>()(
     },
   ),
 );
+
+if (process.env.NODE_ENV === "development" && typeof window !== "undefined") {
+  window.__wih = useSession;
+}
