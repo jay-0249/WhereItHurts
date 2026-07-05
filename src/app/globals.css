@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens from DESIGN.md §1 — the ONLY colors, fonts, radii, and shadows
+ * in the app. The default Tailwind palettes are wiped so nothing off-token
+ * can be used by accident.
+ */
+@theme {
+  --color-*: initial;
+  --color-porcelain: #f6f8f7;
+  --color-ink: #182430;
+  --color-slate: #5c6f7b;
+  --color-teal: #0f6b6e;
+  --color-teal-soft: #dcedec;
+  --color-ember: #e4572e;
+  --color-ember-soft: #fbe3da;
+  --color-line: #e3e8e6;
+  --color-card: #ffffff;
+
+  --font-*: initial;
+  --font-display: var(--font-bricolage), sans-serif;
+  --font-sans: var(--font-public-sans), sans-serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
+
+  --text-display: 2rem;
+  --text-section: 1.25rem;
+  --text-body: 1rem;
+  --text-chip: 0.875rem;
+
+  --radius-card: 16px;
+  --radius-button: 12px;
+  --radius-chip: 999px;
+
+  --shadow-card: 0 1px 3px rgba(24, 36, 48, 0.06);
+  --shadow-sheet: 0 -4px 24px rgba(24, 36, 48, 0.1);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-porcelain);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Visible focus rings on all interactive elements (DESIGN.md §5) */
+:focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 2px;
+}
