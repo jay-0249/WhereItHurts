@@ -48,7 +48,7 @@ This is not a symptom checker and not a diagnostic tool. It never names conditio
 ## Getting started
 
 ```bash
-git clone https://github.com/<you>/WhereItHurts.git
+git clone https://github.com/jay-0249/WhereItHurts.git
 cd WhereItHurts
 npm install
 cp .env.example .env.local   # add your ANTHROPIC_API_KEY (server-side only)
