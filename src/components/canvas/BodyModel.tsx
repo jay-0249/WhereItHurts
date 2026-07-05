@@ -7,7 +7,11 @@ import * as THREE from "three";
 import { regionsForVariant, type RegionId } from "@/data/regions";
 import { useSession } from "@/store/session";
 import { FIGURE } from "./placeholder-figure";
-import { resolveProxy, type ResolvedProxy } from "./body-variants";
+import {
+  overlayInflateFor,
+  resolveProxy,
+  type ResolvedProxy,
+} from "./body-variants";
 
 /**
  * Raycast layer reserved for selectable region proxies. Scene.tsx restricts
@@ -21,10 +25,6 @@ const EMBER = "#E4572E";
 // Translucent ember wash over the visual mesh (DESIGN.md: mild = 35%)
 const OVERLAY_OPACITY = 0.35;
 const OVERLAY_FADE_SECONDS = 0.2; // fades in over 200ms (DESIGN.md §4)
-// Inflation along vertex normals in world units, applied after baking the
-// proxy's (possibly non-uniform) scale into the geometry — NOT mesh scaling,
-// which distorts non-uniformly scaled proxies.
-const OVERLAY_INFLATE = 0.012;
 const TAP_SLOP_PX = 5; // pointer moved further than this = rotate, not tap
 
 function buildProxyGeometry(id: RegionId): THREE.BufferGeometry {
@@ -71,6 +71,10 @@ export function BodyModel() {
     [],
   );
 
+  // Depth-tested (so it hides when the camera is on the far side of the
+  // body) but never depth-written; negative polygon offset wins ties where
+  // the overlay surface nearly coincides with the skin. Combined with the
+  // normal inflation below, the wash always reads as ON the body surface.
   const overlayMaterial = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -78,6 +82,9 @@ export function BodyModel() {
         transparent: true,
         opacity: 0,
         depthWrite: false,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
       }),
     [],
   );
@@ -103,9 +110,11 @@ export function BodyModel() {
 
   // Overlay geometry: proxy geometry with scale baked in, then inflated
   // along recomputed normals — a uniform world-space offset even for
-  // non-uniformly scaled proxies.
+  // non-uniformly scaled proxies. Inflation is per-region-overridable in
+  // body-variants.ts and sized to clear the visual surface everywhere.
   const overlayGeometry = useMemo(() => {
     if (!selectedRegionId || !selectedTransform) return null;
+    const inflate = overlayInflateFor(selectedRegionId);
     const g = buildProxyGeometry(selectedRegionId);
     g.scale(...selectedTransform.scale);
     g.computeVertexNormals();
@@ -114,9 +123,9 @@ export function BodyModel() {
     for (let i = 0; i < pos.count; i++) {
       pos.setXYZ(
         i,
-        pos.getX(i) + nor.getX(i) * OVERLAY_INFLATE,
-        pos.getY(i) + nor.getY(i) * OVERLAY_INFLATE,
-        pos.getZ(i) + nor.getZ(i) * OVERLAY_INFLATE,
+        pos.getX(i) + nor.getX(i) * inflate,
+        pos.getY(i) + nor.getY(i) * inflate,
+        pos.getZ(i) + nor.getZ(i) * inflate,
       );
     }
     pos.needsUpdate = true;
@@ -173,8 +182,10 @@ export function BodyModel() {
             {/* Hover: outline only. Selected: outline + ember overlay
                 (DESIGN.md). World-space thickness — screenspace mode
                 misrenders on non-uniformly scaled meshes. */}
+            {/* Outline displaced by the same amount as the overlay so it
+                also clears the visual surface */}
             {(isSelected || hovered === id) && (
-              <Outlines thickness={0.02} color={EMBER} />
+              <Outlines thickness={overlayInflateFor(id)} color={EMBER} />
             )}
           </mesh>
         );
@@ -187,7 +198,8 @@ export function BodyModel() {
           position={selectedTransform.position}
           rotation={selectedTransform.rotation}
           raycast={() => {}}
-          renderOrder={1}
+          // draw after the visual body so the wash composites over the skin
+          renderOrder={2}
         />
       )}
     </group>

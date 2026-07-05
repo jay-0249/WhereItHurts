@@ -8,6 +8,24 @@ import { FIGURE } from "./placeholder-figure";
  */
 export const VISUAL_TARGET_HEIGHT = 3.6;
 
+/**
+ * Selection-overlay inflation along vertex normals, world units. Must be
+ * large enough that the inflated overlay clears the visual body surface on
+ * every region (the proxies sit inside the body), small enough not to
+ * balloon. Per-region overrides for thin proxies where the default reads
+ * too fat.
+ */
+export const OVERLAY_INFLATE_DEFAULT = 0.05;
+
+export const OVERLAY_INFLATE_OVERRIDES: Partial<Record<RegionId, number>> = {
+  "neck.front": 0.03,
+  "neck.back": 0.03,
+};
+
+export function overlayInflateFor(id: RegionId): number {
+  return OVERLAY_INFLATE_OVERRIDES[id] ?? OVERLAY_INFLATE_DEFAULT;
+}
+
 export interface ProxyTransform {
   /** world-unit offset added to the default proxy position */
   position?: readonly [number, number, number];
