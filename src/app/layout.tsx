@@ -38,7 +38,9 @@ export default function RootLayout({
       lang="en"
       className={`${bricolage.variable} ${publicSans.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="antialiased">
+      {/* suppressHydrationWarning: browser extensions (e.g. Grammarly) inject
+          attributes on <body> before hydration; not caused by our markup. */}
+      <body className="antialiased" suppressHydrationWarning>
         {children}
         <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-0 px-5 pb-2 text-center">
           <p className="text-chip text-slate">{en.app.disclaimer}</p>
