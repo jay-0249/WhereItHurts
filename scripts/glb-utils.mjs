@@ -3,6 +3,11 @@
  * verify-bodies.mjs and measure-body.mjs.
  */
 import { readFileSync } from "node:fs";
+import {
+  applyFitToPositions,
+  computeFitFromBounds,
+  VISUAL_TARGET_HEIGHT,
+} from "../src/lib/body-fit.mjs";
 
 export function assert(condition, message) {
   if (!condition) throw new Error(`ASSERT FAILED: ${message}`);
@@ -62,11 +67,25 @@ export function readPositions(json, bin) {
   return out;
 }
 
-export const TARGET_HEIGHT = 3.6; // must match VISUAL_TARGET_HEIGHT in the app
+export const TARGET_HEIGHT = VISUAL_TARGET_HEIGHT;
 
 /**
- * Apply the app's auto-fit transform in place: uniform-scale to
- * TARGET_HEIGHT tall, feet at y=0, centered on x/z. Returns the positions.
+ * The raw-accessor read is only frame-equivalent to the app's
+ * Box3.setFromObject if the glb nodes carry no transforms. Fail loudly if
+ * a future export changes that.
+ */
+export function assertIdentityNodes(json, label = "glb") {
+  for (const node of json.nodes ?? []) {
+    assert(
+      !node.translation && !node.rotation && !node.scale && !node.matrix,
+      `${label}: node "${node.name}" carries a transform — raw accessor reads no longer match the app's scene-graph bbox`,
+    );
+  }
+}
+
+/**
+ * Apply the app's auto-fit (shared src/lib/body-fit.mjs) in place.
+ * Returns { positions, fit } so callers can record/compare the transform.
  */
 export function autoFit(positions) {
   const min = [Infinity, Infinity, Infinity];
@@ -77,15 +96,30 @@ export function autoFit(positions) {
       max[a] = Math.max(max[a], positions[i + a]);
     }
   }
-  const scale = TARGET_HEIGHT / (max[1] - min[1]);
-  const cx = (min[0] + max[0]) / 2;
-  const cz = (min[2] + max[2]) / 2;
-  for (let i = 0; i < positions.length; i += 3) {
-    positions[i] = (positions[i] - cx) * scale;
-    positions[i + 1] = (positions[i + 1] - min[1]) * scale;
-    positions[i + 2] = (positions[i + 2] - cz) * scale;
+  const fit = computeFitFromBounds(min, max);
+  applyFitToPositions(positions, fit);
+  return { positions, fit };
+}
+
+/** Read a mesh primitive's index accessor as a typed array. */
+export function readIndices(json, bin, prim) {
+  assert(prim.indices !== undefined, "primitive is indexed");
+  const accessor = json.accessors[prim.indices];
+  const view = json.bufferViews[accessor.bufferView];
+  const base = (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+  const Ctor =
+    accessor.componentType === 5125
+      ? Uint32Array
+      : accessor.componentType === 5123
+        ? Uint16Array
+        : null;
+  assert(Ctor, `index componentType ${accessor.componentType} supported`);
+  const out = new Ctor(accessor.count);
+  const bytes = Ctor.BYTES_PER_ELEMENT;
+  for (let i = 0; i < accessor.count; i++) {
+    out[i] = bytes === 4 ? bin.readUInt32LE(base + i * 4) : bin.readUInt16LE(base + i * 2);
   }
-  return positions;
+  return out;
 }
 
 /**

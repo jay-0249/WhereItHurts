@@ -29,6 +29,8 @@ export interface RegionMeshSpec {
   length?: number;
   /** non-uniform scale turning spheres into zone-shaped ellipsoids */
   scale?: readonly [number, number, number];
+  /** euler XYZ radians, e.g. tilted arm/leg capsules following the pose */
+  rotation?: readonly [number, number, number];
 }
 
 export const FIGURE: Record<RegionId, RegionMeshSpec> = {

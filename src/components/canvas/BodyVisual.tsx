@@ -6,12 +6,13 @@ import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { useSession } from "@/store/session";
 import { isRegionId } from "@/data/regions";
+import { computeFitFromBounds, fitsMatch } from "@/lib/body-fit.mjs";
 import {
   BODY_VARIANTS,
-  VISUAL_TARGET_HEIGHT,
+  figureForVariant,
+  landmarksForVariant,
   resolveProxy,
 } from "./body-variants";
-import { FIGURE } from "./placeholder-figure";
 
 const SELECT_OPACITY = 0.35; // ember wash at 35% (DESIGN.md)
 const HOVER_OPACITY = 0.15;
@@ -124,8 +125,9 @@ export function BodyVisual() {
       lastActiveRef.current = activeId;
       shader.uniforms.uTintOpacity.value = 0;
       if (activeId && isRegionId(activeId)) {
-        const spec = FIGURE[activeId];
-        const resolved = resolveProxy(state.bodyVariant ?? "body-a", activeId);
+        const activeVariant = state.bodyVariant ?? "body-a";
+        const spec = figureForVariant(activeVariant)[activeId];
+        const resolved = resolveProxy(activeVariant, activeId);
         shader.uniforms.uTintPos.value.set(...resolved.position);
         shader.uniforms.uTintScale.value.set(...resolved.scale);
         shader.uniforms.uTintRotInv.value.setFromMatrix4(
@@ -154,17 +156,34 @@ export function BodyVisual() {
         mesh.raycast = () => {};
       }
     });
-    // Auto-fit: scale to the proxy figure's height, feet on the floor,
-    // centered on x/z — so any export (placeholder blob or MakeHuman body)
-    // drops in with no code changes.
+    // Auto-fit via THE shared transform (src/lib/body-fit.mjs) — the same
+    // function measures landmarks, so mesh and proxies share one frame by
+    // construction. fitted = (p - center) * scale.
     const box = new THREE.Box3().setFromObject(root);
-    const size = box.getSize(new THREE.Vector3());
-    if (size.y > 0) root.scale.setScalar(VISUAL_TARGET_HEIGHT / size.y);
-    box.setFromObject(root);
-    const center = box.getCenter(new THREE.Vector3());
-    root.position.set(-center.x, root.position.y - box.min.y, -center.z);
+    const fit = computeFitFromBounds(box.min.toArray(), box.max.toArray());
+    root.scale.setScalar(fit.scale);
+    root.position.set(
+      -fit.center[0] * fit.scale,
+      -fit.center[1] * fit.scale,
+      -fit.center[2] * fit.scale,
+    );
+    if (process.env.NODE_ENV === "development") {
+      const measured = landmarksForVariant(variant).fit;
+      console.info(
+        `[body-fit] ${variant} runtime scale=${fit.scale.toFixed(6)} ` +
+          `center=[${fit.center.map((c) => c.toFixed(6)).join(", ")}] | ` +
+          `landmarks scale=${measured.scale} center=[${measured.center.join(", ")}]`,
+      );
+      if (!fitsMatch(fit, measured)) {
+        console.error(
+          `[body-fit] ${variant}: runtime auto-fit does not match the fit ` +
+            `recorded in the landmark file — landmarks/proxies live in a ` +
+            `different frame than the rendered mesh. Re-run scripts/measure-body.mjs.`,
+        );
+      }
+    }
     return root;
-  }, [scene, clayMaterial]);
+  }, [scene, clayMaterial, variant]);
 
   return <primitive object={body} />;
 }

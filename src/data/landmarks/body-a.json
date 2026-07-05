@@ -1,0 +1,133 @@
+{
+  "variant": "body-a",
+  "height": 3.6,
+  "fit": {
+    "scale": 2.143007,
+    "center": [
+      0.000148,
+      0,
+      0.125093
+    ]
+  },
+  "armpitY": 2.484,
+  "shoulder": {
+    "y": 2.808,
+    "halfWidth": 0.5317
+  },
+  "crotchY": 1.62,
+  "chestBotY": 2.322,
+  "waist": {
+    "y": 2.268,
+    "halfWidth": 0.264
+  },
+  "hip": {
+    "y": 1.62,
+    "halfWidth": 0.3767
+  },
+  "torsoSlices": {
+    "chest": {
+      "y": 2.565,
+      "halfWidth": 0.3319,
+      "zMin": -0.4127,
+      "zMax": 0.0539
+    },
+    "waist": {
+      "y": 2.268,
+      "halfWidth": 0.264,
+      "zMin": -0.3645,
+      "zMax": 0.0221
+    },
+    "hip": {
+      "y": 1.62,
+      "halfWidth": 0.3767,
+      "zMin": -0.3948,
+      "zMax": -0.0019
+    },
+    "pelvis": {
+      "y": 1.7982,
+      "halfWidth": 0.3531,
+      "zMin": -0.4704,
+      "zMax": -0.0124
+    }
+  },
+  "bust": {
+    "y": 2.556,
+    "zMax": 0.0539,
+    "x": 0.1483
+  },
+  "neck": {
+    "y": 3.168,
+    "halfWidth": 0.1315,
+    "zMin": -0.3163,
+    "zMax": 0.0655
+  },
+  "chinY": 3.24,
+  "head": {
+    "halfWidth": 0.1805,
+    "zMin": -0.373,
+    "zMax": 0.0791
+  },
+  "arm": {
+    "wristY": 1.692,
+    "wristRadius": 0.0328,
+    "handBottomY": 1.62,
+    "radius": 0.1019,
+    "upperAngleDeg": 31.4925,
+    "foreAngleDeg": 40.47,
+    "top": [
+      0.5332,
+      2.34,
+      -0.1806
+    ],
+    "elbow": [
+      0.5577,
+      2.232,
+      -0.1191
+    ],
+    "wrist": [
+      0.6528,
+      1.692,
+      0.3317
+    ],
+    "hand": {
+      "cz": 0.3317,
+      "zHalf": 0.1033
+    }
+  },
+  "leg": {
+    "topX": 0.1973,
+    "topZ": -0.2185,
+    "thigh": {
+      "y": 1.2985,
+      "x": 0.2507,
+      "z": -0.1836,
+      "radius": 0.1523
+    },
+    "knee": {
+      "y": 0.977,
+      "x": 0.3246,
+      "z": -0.2225,
+      "radius": 0.1305
+    },
+    "calf": {
+      "y": 0.6145,
+      "x": 0.3643,
+      "radius": 0.1137,
+      "zMin": -0.3656,
+      "zMax": -0.151
+    },
+    "ankle": {
+      "y": 0.252,
+      "x": 0.4056,
+      "z": -0.2283,
+      "radius": 0.0586
+    }
+  },
+  "foot": {
+    "centerX": 0.4142,
+    "halfWidth": 0.0987,
+    "zMin": -0.3411,
+    "zMax": 0.1756,
+    "topY": 0.198
+  }
+}

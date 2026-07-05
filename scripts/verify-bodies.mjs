@@ -9,7 +9,8 @@
  * not be byte-identical and their shoulder:hip width ratios must differ by
  * at least 8% — alignment must never run against effectively equal bodies.
  */
-import { copyFileSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
@@ -82,7 +83,7 @@ function verify(name) {
   );
 
   // shoulder & hip widths from y-band torso clusters (app-space transform)
-  const positions = autoFit(readPositions(gltf, bin));
+  const { positions } = autoFit(readPositions(gltf, bin));
   const H = TARGET_HEIGHT;
   const shoulder = torsoClusterHalfWidth(positions, 0.72 * H, 0.8 * H);
   const hip = torsoClusterHalfWidth(positions, 0.46 * H, 0.54 * H);
@@ -115,9 +116,20 @@ assert(
 );
 console.log(`variant difference: shoulder:hip ratios differ by ${(ratioDiff * 100).toFixed(1)}%`);
 
+const manifest = {};
 for (const name of ["body-a", "body-b"]) {
   const dest = path.join(assetsDir, `${name}.glb`);
   copyFileSync(results[name].filePath, dest);
-  console.log(`installed ${dest}`);
+  // content hash for cache-busting: the app requests body-a.glb?v=<hash>,
+  // so a regenerated mesh can never be served stale from a browser cache
+  manifest[`${name}.glb`] = createHash("sha256")
+    .update(readFileSync(dest))
+    .digest("hex")
+    .slice(0, 12);
+  console.log(`installed ${dest} (v=${manifest[`${name}.glb`]})`);
 }
-console.log("all bodies verified and installed");
+writeFileSync(
+  path.join(scriptsDir, "..", "src", "data", "asset-manifest.json"),
+  JSON.stringify(manifest, null, 2) + "\n",
+);
+console.log("all bodies verified and installed; asset manifest written");

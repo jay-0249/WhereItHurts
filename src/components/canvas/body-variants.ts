@@ -1,12 +1,21 @@
-import type { BodyVariant, RegionId } from "@/data/regions";
-import { FIGURE } from "./placeholder-figure";
+import { REGION_IDS, type BodyVariant, type RegionId } from "@/data/regions";
+import {
+  buildFigureFromLandmarks,
+  type BodyLandmarks,
+} from "@/data/figure-from-landmarks.mjs";
+import landmarksA from "@/data/landmarks/body-a.json";
+import landmarksB from "@/data/landmarks/body-b.json";
+import assetManifest from "@/data/asset-manifest.json";
+import { FIGURE, type RegionMeshSpec } from "./placeholder-figure";
 
-/**
- * The visual mesh is auto-fitted to this height (feet at y=0, centered on
- * x/z) at load, so any glTF export drops in without code changes. Matches
- * the proxy figure: head top = 3.28 + 0.32.
- */
-export const VISUAL_TARGET_HEIGHT = 3.6;
+/** Content-hashed GLB URL so regenerated meshes bypass browser caches. */
+function glbUrl(file: keyof typeof assetManifest): string {
+  return `/assets/${file}?v=${assetManifest[file]}`;
+}
+
+export function landmarksForVariant(variant: BodyVariant): BodyLandmarks {
+  return (variant === "body-a" ? landmarksA : landmarksB) as BodyLandmarks;
+}
 
 export interface ProxyTransform {
   /** world-unit offset added to the default proxy position */
@@ -30,14 +39,42 @@ export interface BodyVariantConfig {
 
 export const BODY_VARIANTS: Record<BodyVariant, BodyVariantConfig> = {
   "body-a": {
-    glbPath: "/assets/body-a.glb",
+    glbPath: glbUrl("body-a.glb"),
     proxyTransforms: {},
   },
   "body-b": {
-    glbPath: "/assets/body-b.glb",
+    glbPath: glbUrl("body-b.glb"),
     proxyTransforms: {},
   },
 };
+
+/**
+ * Per-variant proxy layouts, derived from that variant's measured landmark
+ * file (src/data/landmarks/, produced by scripts/measure-body.mjs). The
+ * hand-tuned FIGURE constants remain only as a fallback should the builder
+ * ever miss a region.
+ */
+function buildVariantFigure(
+  landmarks: BodyLandmarks,
+): Record<RegionId, RegionMeshSpec> {
+  const built = buildFigureFromLandmarks(landmarks);
+  const out = {} as Record<RegionId, RegionMeshSpec>;
+  for (const id of REGION_IDS) {
+    out[id] = (built[id] as RegionMeshSpec | undefined) ?? FIGURE[id];
+  }
+  return out;
+}
+
+const FIGURES: Record<BodyVariant, Record<RegionId, RegionMeshSpec>> = {
+  "body-a": buildVariantFigure(landmarksA),
+  "body-b": buildVariantFigure(landmarksB),
+};
+
+export function figureForVariant(
+  variant: BodyVariant,
+): Record<RegionId, RegionMeshSpec> {
+  return FIGURES[variant];
+}
 
 export interface ResolvedProxy {
   position: [number, number, number];
@@ -46,10 +83,11 @@ export interface ResolvedProxy {
 }
 
 export function resolveProxy(variant: BodyVariant, id: RegionId): ResolvedProxy {
-  const base = FIGURE[id];
+  const base = figureForVariant(variant)[id];
   const t = BODY_VARIANTS[variant].proxyTransforms[id];
   const [px, py, pz] = base.position;
   const [sx, sy, sz] = base.scale ?? [1, 1, 1];
+  const [rx, ry, rz] = base.rotation ?? [0, 0, 0];
   return {
     position: [
       px + (t?.position?.[0] ?? 0),
@@ -61,7 +99,11 @@ export function resolveProxy(variant: BodyVariant, id: RegionId): ResolvedProxy 
       sy * (t?.scale?.[1] ?? 1),
       sz * (t?.scale?.[2] ?? 1),
     ],
-    rotation: t?.rotation ? [...t.rotation] : [0, 0, 0],
+    rotation: [
+      rx + (t?.rotation?.[0] ?? 0),
+      ry + (t?.rotation?.[1] ?? 0),
+      rz + (t?.rotation?.[2] ?? 0),
+    ],
   };
 }
 

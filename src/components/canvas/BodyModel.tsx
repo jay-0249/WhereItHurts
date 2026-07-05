@@ -6,8 +6,12 @@ import { useCursor } from "@react-three/drei";
 import * as THREE from "three";
 import { regionsForVariant, type RegionId } from "@/data/regions";
 import { useSession } from "@/store/session";
-import { FIGURE } from "./placeholder-figure";
-import { resolveProxy, type ResolvedProxy } from "./body-variants";
+import type { RegionMeshSpec } from "./placeholder-figure";
+import {
+  figureForVariant,
+  resolveProxy,
+  type ResolvedProxy,
+} from "./body-variants";
 
 /**
  * Raycast layer reserved for selectable region proxies. Scene.tsx restricts
@@ -19,8 +23,7 @@ export const REGION_RAYCAST_LAYER = 1;
 
 const TAP_SLOP_PX = 5; // pointer moved further than this = rotate, not tap
 
-function buildProxyGeometry(id: RegionId): THREE.BufferGeometry {
-  const spec = FIGURE[id];
+function buildProxyGeometry(spec: RegionMeshSpec): THREE.BufferGeometry {
   return spec.kind === "capsule"
     ? new THREE.CapsuleGeometry(spec.radius, spec.length ?? 0, 8, 24)
     : new THREE.SphereGeometry(spec.radius, 32, 24);
@@ -44,12 +47,13 @@ export function BodyModel() {
   useCursor(hovered !== null);
 
   const regionIds = useMemo(() => regionsForVariant(variant), [variant]);
+  const figure = useMemo(() => figureForVariant(variant), [variant]);
 
   const geometries = useMemo(() => {
     const map = new Map<RegionId, THREE.BufferGeometry>();
-    for (const id of regionIds) map.set(id, buildProxyGeometry(id));
+    for (const id of regionIds) map.set(id, buildProxyGeometry(figure[id]));
     return map;
-  }, [regionIds]);
+  }, [regionIds, figure]);
 
   const transforms = useMemo(() => {
     const map = new Map<RegionId, ResolvedProxy>();
