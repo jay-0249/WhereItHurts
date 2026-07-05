@@ -23,3 +23,7 @@ Desktop.ini
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# downloaded build tooling (hash-pinned by scripts/setup-mpfb.py)
+scripts/vendor/
+scripts/out/
