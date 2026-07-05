@@ -92,6 +92,10 @@ export const useSession = create<SessionState>()(
       confirmPending: () => {
         const pending = get().pending;
         if (!pending) return;
+        // SPEC-QUESTION: PLANNING.md §3 says regionLabel is "resolved from
+        // i18n at render time, not stored logic", yet the schema includes the
+        // field on the record. Storing the resolved English label at creation
+        // keeps schema conformance; revisit when Phase 2 adds locales.
         const record: PainRecord = {
           id: crypto.randomUUID(),
           createdAt: new Date().toISOString(),
