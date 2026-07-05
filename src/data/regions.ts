@@ -265,3 +265,13 @@ export function neighborsForVariant(
 export function isRegionId(id: string): id is RegionId {
   return (REGION_IDS as readonly string[]).includes(id);
 }
+
+/**
+ * Anatomical side of a region, derived from the ID suffix. Labels use the
+ * patient's side; the confirm sheet appends a clarifier for sided regions.
+ */
+export function regionSide(id: RegionId): "left" | "right" | null {
+  if (id.endsWith(".left")) return "left";
+  if (id.endsWith(".right")) return "right";
+  return null;
+}

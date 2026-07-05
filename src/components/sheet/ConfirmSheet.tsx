@@ -3,6 +3,7 @@
 import { Drawer } from "vaul";
 import {
   neighborsForVariant,
+  regionSide,
   type BodyVariant,
   type RegionId,
 } from "@/data/regions";
@@ -78,6 +79,8 @@ export function ConfirmSheet() {
             <>
               <Drawer.Title className="font-display text-section text-ink">
                 {regionLabel(pending.regionId, variant)}
+                {regionSide(pending.regionId) &&
+                  ` — ${en.confirm.sideClarifier(regionSide(pending.regionId)!)}`}
               </Drawer.Title>
               <p className="mt-1 text-body text-ink">{en.confirm.question}</p>
 

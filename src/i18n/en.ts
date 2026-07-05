@@ -31,6 +31,9 @@ export const en = {
     yes: "Yes, that's it",
     adjust: "Adjust",
     adjustHint: "Tap a nearby area, or tap the body again.",
+    // lowercase clarifier appended to sided region labels: "Left chest — your left"
+    sideClarifier: (side: "left" | "right") =>
+      side === "left" ? "your left" : "your right",
   },
   pin: {
     title: (n: number) => `Pin ${n}`,
