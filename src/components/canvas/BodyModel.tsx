@@ -1,17 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useFrame, type ThreeEvent } from "@react-three/fiber";
-import { Outlines, useCursor } from "@react-three/drei";
+import { useEffect, useMemo } from "react";
+import { type ThreeEvent } from "@react-three/fiber";
+import { useCursor } from "@react-three/drei";
 import * as THREE from "three";
 import { regionsForVariant, type RegionId } from "@/data/regions";
 import { useSession } from "@/store/session";
 import { FIGURE } from "./placeholder-figure";
-import {
-  overlayInflateFor,
-  resolveProxy,
-  type ResolvedProxy,
-} from "./body-variants";
+import { resolveProxy, type ResolvedProxy } from "./body-variants";
 
 /**
  * Raycast layer reserved for selectable region proxies. Scene.tsx restricts
@@ -21,10 +17,6 @@ import {
  */
 export const REGION_RAYCAST_LAYER = 1;
 
-const EMBER = "#E4572E";
-// Translucent ember wash over the visual mesh (DESIGN.md: mild = 35%)
-const OVERLAY_OPACITY = 0.35;
-const OVERLAY_FADE_SECONDS = 0.2; // fades in over 200ms (DESIGN.md §4)
 const TAP_SLOP_PX = 5; // pointer moved further than this = rotate, not tap
 
 function buildProxyGeometry(id: RegionId): THREE.BufferGeometry {
@@ -38,12 +30,17 @@ function buildProxyGeometry(id: RegionId): THREE.BufferGeometry {
  * The invisible interaction layer: one raycastable proxy volume per region.
  * Proxies stay rendered (visible=false can drop meshes out of raycasting)
  * but draw nothing: opacity 0, no color write, no depth write.
+ *
+ * A proxy's three jobs: raycast target, tint volume (the highlight itself
+ * is fragment tinting in BodyVisual's material), and pin centroid. Proxies
+ * only need to ENCLOSE their body zone — they don't have to hug the
+ * visual silhouette.
  */
 export function BodyModel() {
   const variant = useSession((s) => s.bodyVariant) ?? "body-a";
-  const pending = useSession((s) => s.pending);
   const selectRegion = useSession((s) => s.selectRegion);
-  const [hovered, setHovered] = useState<RegionId | null>(null);
+  const hovered = useSession((s) => s.hoveredRegion);
+  const setHoveredRegion = useSession((s) => s.setHoveredRegion);
   useCursor(hovered !== null);
 
   const regionIds = useMemo(() => regionsForVariant(variant), [variant]);
@@ -96,93 +93,18 @@ export function BodyModel() {
     return map;
   }, [debugProxies, regionIds]);
 
-  useEffect(
-    () => () => debugMaterials?.forEach((m) => m.dispose()),
-    [debugMaterials],
-  );
-
-  // Depth-tested (so it hides when the camera is on the far side of the
-  // body) but never depth-written; negative polygon offset wins ties where
-  // the overlay surface nearly coincides with the skin. Combined with the
-  // normal inflation below, the wash always reads as ON the body surface.
-  const overlayMaterial = useMemo(
-    () =>
-      new THREE.MeshBasicMaterial({
-        color: EMBER,
-        transparent: true,
-        opacity: 0,
-        depthWrite: false,
-        // explicit: far hemisphere of the inflated shell must be culled,
-        // never rendered as a rim around the silhouette
-        side: THREE.FrontSide,
-        polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
-      }),
-    [],
-  );
-
   useEffect(() => {
     return () => {
       geometries.forEach((g) => g.dispose());
     };
   }, [geometries]);
 
-  useEffect(() => {
-    return () => {
-      proxyMaterial.dispose();
-      overlayMaterial.dispose();
-    };
-  }, [proxyMaterial, overlayMaterial]);
+  useEffect(() => () => proxyMaterial.dispose(), [proxyMaterial]);
 
-  const selectedRegionId =
-    pending && regionIds.includes(pending.regionId) ? pending.regionId : null;
-  const selectedTransform = selectedRegionId
-    ? transforms.get(selectedRegionId)
-    : undefined;
-
-  // Overlay geometry: proxy geometry with scale baked in, then inflated
-  // along recomputed normals — a uniform world-space offset even for
-  // non-uniformly scaled proxies. Inflation is per-region-overridable in
-  // body-variants.ts and sized to clear the visual surface everywhere.
-  const overlayGeometry = useMemo(() => {
-    if (!selectedRegionId || !selectedTransform) return null;
-    const inflate = overlayInflateFor(selectedRegionId);
-    const g = buildProxyGeometry(selectedRegionId);
-    g.scale(...selectedTransform.scale);
-    g.computeVertexNormals();
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    const nor = g.attributes.normal as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      pos.setXYZ(
-        i,
-        pos.getX(i) + nor.getX(i) * inflate,
-        pos.getY(i) + nor.getY(i) * inflate,
-        pos.getZ(i) + nor.getZ(i) * inflate,
-      );
-    }
-    pos.needsUpdate = true;
-    return g;
-  }, [selectedRegionId, selectedTransform]);
-
-  useEffect(() => () => overlayGeometry?.dispose(), [overlayGeometry]);
-
-  // Overlay opacity animates by mutating the material in useFrame — never
-  // setState per frame (CLAUDE.md). Fade restarts whenever selection moves.
-  const lastSelectedRef = useRef<RegionId | null>(null);
-  useFrame((_, delta) => {
-    if (selectedRegionId !== lastSelectedRef.current) {
-      overlayMaterial.opacity = 0;
-      lastSelectedRef.current = selectedRegionId;
-    }
-    if (selectedRegionId) {
-      overlayMaterial.opacity = Math.min(
-        OVERLAY_OPACITY,
-        overlayMaterial.opacity +
-          (delta / OVERLAY_FADE_SECONDS) * OVERLAY_OPACITY,
-      );
-    }
-  });
+  useEffect(
+    () => () => debugMaterials?.forEach((m) => m.dispose()),
+    [debugMaterials],
+  );
 
   const handleTap = (id: RegionId) => (event: ThreeEvent<MouseEvent>) => {
     if (event.delta > TAP_SLOP_PX) return;
@@ -195,7 +117,6 @@ export function BodyModel() {
     <group>
       {regionIds.map((id) => {
         const t = transforms.get(id)!;
-        const isSelected = selectedRegionId === id;
         return (
           <mesh
             key={id}
@@ -208,33 +129,12 @@ export function BodyModel() {
             onClick={handleTap(id)}
             onPointerOver={(e) => {
               e.stopPropagation();
-              setHovered(id);
+              setHoveredRegion(id);
             }}
-            onPointerOut={() => setHovered((h) => (h === id ? null : h))}
-          >
-            {/* Hover: outline only. Selected: outline + ember overlay
-                (DESIGN.md). World-space thickness — screenspace mode
-                misrenders on non-uniformly scaled meshes. */}
-            {/* Outline displaced by the same amount as the overlay so it
-                also clears the visual surface */}
-            {(isSelected || hovered === id) && (
-              <Outlines thickness={overlayInflateFor(id)} color={EMBER} />
-            )}
-          </mesh>
+            onPointerOut={() => setHoveredRegion(null, id)}
+          />
         );
       })}
-
-      {selectedRegionId && overlayGeometry && selectedTransform && (
-        <mesh
-          geometry={overlayGeometry}
-          material={overlayMaterial}
-          position={selectedTransform.position}
-          rotation={selectedTransform.rotation}
-          raycast={() => {}}
-          // draw after the visual body so the wash composites over the skin
-          renderOrder={2}
-        />
-      )}
     </group>
   );
 }

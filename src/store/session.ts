@@ -67,10 +67,14 @@ interface SessionState {
   choosingBody: boolean;
   pending: PendingSelection | null;
   reviewPinId: string | null;
+  /** desktop hover feedback; ephemeral, never persisted */
+  hoveredRegion: RegionId | null;
 
   setBodyVariant: (variant: BodyVariant) => void;
   openBodyChooser: () => void;
   selectRegion: (regionId: RegionId) => void;
+  /** pass `ifCurrent` to clear only when that region is still hovered */
+  setHoveredRegion: (regionId: RegionId | null, ifCurrent?: RegionId) => void;
   startAdjust: () => void;
   confirmPending: () => void;
   clearPending: () => void;
@@ -88,6 +92,15 @@ export const useSession = create<SessionState>()(
       choosingBody: false,
       pending: null,
       reviewPinId: null,
+      hoveredRegion: null,
+
+      setHoveredRegion: (regionId, ifCurrent) => {
+        if (regionId === null && ifCurrent !== undefined) {
+          if (get().hoveredRegion === ifCurrent) set({ hoveredRegion: null });
+          return;
+        }
+        set({ hoveredRegion: regionId });
+      },
 
       setBodyVariant: (variant) =>
         set({ bodyVariant: variant, choosingBody: false }),

@@ -71,11 +71,14 @@ their pain, everything teal relates to actions they can take.
   clay material, purely decorative, excluded from raycasting entirely. Region
   segmentation lives in the proxy layer, so the visual asset needs no
   per-region material groups.
-- **Selection highlight** = the hit proxy re-rendered as a translucent ember
-  overlay (`--ember` at 35% opacity, no depth write, inflated slightly along
-  its vertex normals so it sits just above the visual surface) plus the
-  world-space outline. Hover (desktop) = outline only. The overlay fades in
-  over 200ms like the previous emissive glow.
+- **Selection highlight** = fragment tinting in the visual mesh's material:
+  the shader receives the active proxy volume as uniforms, computes each
+  fragment's signed distance to it, and tints inside fragments with
+  `--ember` at 35% (soft ~0.01-unit falloff at the boundary, 200ms fade-in
+  via a uniform). Hover (desktop) = the same tint at 15%. Because the wash
+  is literally part of the skin surface, it cannot spill past the
+  silhouette, show through from the far side, or detach from the body.
+  One volume is active at a time; selection takes precedence over hover.
 - **Body variants.** Two body builds, internal keys `body-a` / `body-b`. UI
   copy NEVER uses gendered words ("male"/"female" are banned in user-facing
   strings). First visit shows a chooser — "Choose the body that looks most
