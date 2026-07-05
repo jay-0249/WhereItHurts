@@ -1,13 +1,25 @@
 import type { RegionId } from "@/data/regions";
 
 /**
- * Placeholder capsule-and-sphere humanoid (PLANNING.md §6 build order rule:
- * validate raycast selection, confirm loop, and pins against a placeholder
- * segmented figure BEFORE investing in the real mesh).
+ * Placeholder proxy volumes: one primitive per region, keyed to region IDs.
+ * Coordinates: y up, ground at y=0, figure faces +z (toward the default
+ * camera), so anatomical left = +x. Positions double as pin anchors.
  *
- * Each region is one primitive mesh keyed to a region ID. Coordinates:
- * y up, ground at y=0, figure faces +z (toward the default camera), so
- * anatomical left = +x. Positions double as pin anchors (region centroids).
+ * Proxy volumes have three jobs: raycast target, tint volume for the
+ * fragment-shader highlight, and pin centroid.
+ *
+ * CONTAINMENT INVARIANT: the visual mesh's skin across a region's zone must
+ * lie fully INSIDE its volume, protruding outward past the skin by ~0.05+
+ * in every direction the zone faces — otherwise the tint disconnects into
+ * patches where the skin exits the volume. The flip-side constraint: a
+ * volume must NOT reach the opposite side's skin (e.g. a front panel must
+ * stop short of the back surface) or its tint bleeds through to the other
+ * side. Where neighbors overlap, raycast hit order decides: the intended
+ * region's surface must be nearest to the camera over its zone (front
+ * panels protrude further forward than back panels reach, breasts protrude
+ * past chest, toes past foot, ears past head). Verify with ?proxies=1 —
+ * every colored volume should visibly poke out of the body over its zone.
+ * Numbers derived from the blob dimensions in scripts/make-placeholder-body.mjs.
  */
 export interface RegionMeshSpec {
   kind: "sphere" | "capsule";
@@ -15,106 +27,110 @@ export interface RegionMeshSpec {
   radius: number;
   /** capsule mid-section length */
   length?: number;
-  /** non-uniform scale for flattened torso panels and feet */
+  /** non-uniform scale turning spheres into zone-shaped ellipsoids */
   scale?: readonly [number, number, number];
 }
 
-/*
- * Proxy volumes have three jobs: raycast target, tint volume for the
- * fragment-shader highlight, and pin centroid. They only need to ENCLOSE
- * their body zone with comfortable overlap — the highlight renders on the
- * visual mesh itself, so proxies exceeding the silhouette is harmless.
- * What matters: front zones must jointly cover the front surface (and back
- * zones the back) with no ray-through gaps, and where volumes overlap in
- * depth, the intended region's surface must be nearest to the camera.
- */
 export const FIGURE: Record<RegionId, RegionMeshSpec> = {
-  head: { kind: "sphere", position: [0, 3.28, 0], radius: 0.29 },
-  "head.ear.left": { kind: "sphere", position: [0.24, 3.28, 0], radius: 0.06 },
-  "head.ear.right": { kind: "sphere", position: [-0.24, 3.28, 0], radius: 0.06 },
+  // Head volume encloses the whole head; ears/eyes/jaw protrude past it to
+  // win the raycast in their zones.
+  head: { kind: "sphere", position: [0, 3.28, 0], radius: 0.36 },
+  "head.ear.left": { kind: "sphere", position: [0.28, 3.28, 0], radius: 0.12 },
+  "head.ear.right": { kind: "sphere", position: [-0.28, 3.28, 0], radius: 0.12 },
   "head.eyes": {
-    kind: "sphere", position: [0, 3.32, 0.24], radius: 0.09, scale: [1.6, 0.6, 0.6],
+    kind: "sphere", position: [0, 3.3, 0.22], radius: 0.09, scale: [1.9, 0.8, 1.9],
   },
   "head.jaw": {
-    kind: "sphere", position: [0, 3.08, 0.14], radius: 0.1, scale: [1.4, 0.6, 0.9],
+    kind: "sphere", position: [0, 3.06, 0.14], radius: 0.1, scale: [1.7, 0.7, 1.8],
   },
-  "neck.front": { kind: "capsule", position: [0, 2.92, 0.04], radius: 0.075, length: 0.14 },
-  "neck.back": { kind: "capsule", position: [0, 2.92, -0.04], radius: 0.075, length: 0.14 },
-  // Chest panels overlap across the midline, reach the neck, and cover the
-  // full torso width so no front-facing ray can slip through to a back
-  // proxy or fall into a lateral dead zone.
+  "neck.front": { kind: "capsule", position: [0, 2.92, 0.05], radius: 0.13, length: 0.16 },
+  "neck.back": { kind: "capsule", position: [0, 2.92, -0.05], radius: 0.13, length: 0.16 },
+  // Front torso panels protrude well past the front skin (z 0.26) and stop
+  // short of the back skin (-0.26); back panels mirror that.
   "torso.chest.left.anterior": {
-    kind: "sphere", position: [0.17, 2.5, 0.12], radius: 0.3, scale: [0.9, 1.1, 0.5],
+    kind: "sphere", position: [0.2, 2.52, 0.1], radius: 0.3, scale: [1.05, 1.2, 0.85],
   },
   "torso.chest.right.anterior": {
-    kind: "sphere", position: [-0.17, 2.5, 0.12], radius: 0.3, scale: [0.9, 1.1, 0.5],
+    kind: "sphere", position: [-0.2, 2.52, 0.1], radius: 0.3, scale: [1.05, 1.2, 0.85],
   },
-  // Breast proxies must protrude past the chest panels' front surface
-  // (z 0.29 > chest 0.26 at that x/y) or the chest always wins the raycast.
-  "torso.chest.breast.left": { kind: "sphere", position: [0.16, 2.38, 0.19], radius: 0.1 },
-  "torso.chest.breast.right": { kind: "sphere", position: [-0.16, 2.38, 0.19], radius: 0.1 },
+  // Breast volumes protrude past the chest panels' front faces to win the
+  // raycast in their zone (body-b only).
+  "torso.chest.breast.left": { kind: "sphere", position: [0.16, 2.38, 0.25], radius: 0.15 },
+  "torso.chest.breast.right": { kind: "sphere", position: [-0.16, 2.38, 0.25], radius: 0.15 },
   "torso.abdomen.upper.anterior": {
-    kind: "sphere", position: [0, 2.1, 0.1], radius: 0.3, scale: [1.4, 0.65, 0.5],
+    kind: "sphere", position: [0, 2.1, 0.08], radius: 0.3, scale: [1.65, 0.75, 0.95],
   },
   "torso.abdomen.lower.anterior": {
-    kind: "sphere", position: [0, 1.78, 0.1], radius: 0.3, scale: [1.4, 0.65, 0.5],
+    kind: "sphere", position: [0, 1.78, 0.08], radius: 0.3, scale: [1.65, 0.7, 0.95],
   },
   "torso.pelvis.anterior": {
-    kind: "sphere", position: [0, 1.54, 0.1], radius: 0.24, scale: [1, 0.55, 0.5],
+    kind: "sphere", position: [0, 1.55, 0.08], radius: 0.24, scale: [1.15, 0.65, 1.0],
   },
   "torso.groin": {
-    kind: "sphere", position: [0, 1.43, 0.05], radius: 0.1, scale: [0.8, 0.5, 0.5],
+    kind: "sphere", position: [0, 1.42, 0.05], radius: 0.1, scale: [1.6, 0.9, 2.2],
   },
-  // Back panels sit deep enough that even where they graze the midplane,
-  // the front panels' surfaces are always nearer for a front-facing ray.
   "torso.back.upper": {
-    kind: "sphere", position: [0, 2.5, -0.12], radius: 0.32, scale: [1.35, 0.95, 0.45],
+    kind: "sphere", position: [0, 2.52, -0.08], radius: 0.32, scale: [1.55, 1.15, 0.85],
   },
   "torso.back.lower": {
-    kind: "sphere", position: [0, 1.98, -0.12], radius: 0.32, scale: [1.25, 0.85, 0.45],
+    kind: "sphere", position: [0, 1.95, -0.08], radius: 0.32, scale: [1.55, 1.0, 0.85],
   },
-  "shoulder.left": { kind: "sphere", position: [0.45, 2.7, 0], radius: 0.12 },
-  "shoulder.right": { kind: "sphere", position: [-0.45, 2.7, 0], radius: 0.12 },
-  "arm.upper.left": { kind: "capsule", position: [0.55, 2.3, 0], radius: 0.085, length: 0.35 },
-  "arm.upper.right": { kind: "capsule", position: [-0.55, 2.3, 0], radius: 0.085, length: 0.35 },
-  "arm.elbow.left": { kind: "sphere", position: [0.55, 2.05, 0], radius: 0.088 },
-  "arm.elbow.right": { kind: "sphere", position: [-0.55, 2.05, 0], radius: 0.088 },
-  "arm.fore.left": { kind: "capsule", position: [0.55, 1.8, 0], radius: 0.08, length: 0.3 },
-  "arm.fore.right": { kind: "capsule", position: [-0.55, 1.8, 0], radius: 0.08, length: 0.3 },
-  "arm.wrist.left": { kind: "sphere", position: [0.55, 1.57, 0], radius: 0.08 },
-  "arm.wrist.right": { kind: "sphere", position: [-0.55, 1.57, 0], radius: 0.08 },
-  "hand.left": { kind: "sphere", position: [0.57, 1.48, 0], radius: 0.08 },
-  "hand.right": { kind: "sphere", position: [-0.57, 1.48, 0], radius: 0.08 },
+  "shoulder.left": {
+    kind: "sphere", position: [0.45, 2.7, 0], radius: 0.19, scale: [1, 1, 1.15],
+  },
+  "shoulder.right": {
+    kind: "sphere", position: [-0.45, 2.7, 0], radius: 0.19, scale: [1, 1, 1.15],
+  },
+  // Arm volumes: outer margin generous; inner radius stops just past the
+  // torso flank (x 0.414) so arm tint doesn't bleed onto the waist.
+  "arm.upper.left": { kind: "capsule", position: [0.55, 2.3, 0], radius: 0.125, length: 0.38 },
+  "arm.upper.right": { kind: "capsule", position: [-0.55, 2.3, 0], radius: 0.125, length: 0.38 },
+  "arm.elbow.left": { kind: "sphere", position: [0.55, 2.05, 0], radius: 0.13 },
+  "arm.elbow.right": { kind: "sphere", position: [-0.55, 2.05, 0], radius: 0.13 },
+  "arm.fore.left": { kind: "capsule", position: [0.55, 1.79, 0], radius: 0.12, length: 0.32 },
+  "arm.fore.right": { kind: "capsule", position: [-0.55, 1.79, 0], radius: 0.12, length: 0.32 },
+  "arm.wrist.left": { kind: "sphere", position: [0.55, 1.56, 0], radius: 0.115 },
+  "arm.wrist.right": { kind: "sphere", position: [-0.55, 1.56, 0], radius: 0.115 },
+  "hand.left": { kind: "sphere", position: [0.57, 1.47, 0], radius: 0.15 },
+  "hand.right": { kind: "sphere", position: [-0.57, 1.47, 0], radius: 0.15 },
   "hand.fingers.left": {
-    kind: "sphere", position: [0.57, 1.38, 0], radius: 0.05, scale: [1.2, 1, 1],
+    kind: "sphere", position: [0.57, 1.35, 0], radius: 0.09, scale: [1.2, 0.9, 1.1],
   },
   "hand.fingers.right": {
-    kind: "sphere", position: [-0.57, 1.38, 0], radius: 0.05, scale: [1.2, 1, 1],
+    kind: "sphere", position: [-0.57, 1.35, 0], radius: 0.09, scale: [1.2, 0.9, 1.1],
   },
-  "hip.left": { kind: "sphere", position: [0.2, 1.6, 0], radius: 0.16, scale: [1, 0.9, 1.4] },
-  "hip.right": { kind: "sphere", position: [-0.2, 1.6, 0], radius: 0.16, scale: [1, 0.9, 1.4] },
-  "leg.upper.left": { kind: "capsule", position: [0.2, 1.15, 0], radius: 0.115, length: 0.35 },
-  "leg.upper.right": { kind: "capsule", position: [-0.2, 1.15, 0], radius: 0.115, length: 0.35 },
-  "leg.knee.left": { kind: "sphere", position: [0.2, 0.9, 0], radius: 0.11 },
-  "leg.knee.right": { kind: "sphere", position: [-0.2, 0.9, 0], radius: 0.11 },
-  // calf = back of the lower leg, shin = front; split on z
-  "leg.calf.left": { kind: "capsule", position: [0.2, 0.62, -0.035], radius: 0.09, length: 0.3 },
-  "leg.calf.right": { kind: "capsule", position: [-0.2, 0.62, -0.035], radius: 0.09, length: 0.3 },
-  "leg.shin.left": { kind: "capsule", position: [0.2, 0.62, 0.035], radius: 0.09, length: 0.3 },
-  "leg.shin.right": { kind: "capsule", position: [-0.2, 0.62, 0.035], radius: 0.09, length: 0.3 },
-  "leg.ankle.left": { kind: "sphere", position: [0.2, 0.33, 0], radius: 0.09 },
-  "leg.ankle.right": { kind: "sphere", position: [-0.2, 0.33, 0], radius: 0.09 },
+  // Hip wraps the side laterally; front/back center belong to pelvis and
+  // lower back, which protrude further along z in their zones.
+  "hip.left": {
+    kind: "sphere", position: [0.22, 1.6, 0], radius: 0.16, scale: [1.5, 1.1, 1.9],
+  },
+  "hip.right": {
+    kind: "sphere", position: [-0.22, 1.6, 0], radius: 0.16, scale: [1.5, 1.1, 1.9],
+  },
+  "leg.upper.left": { kind: "capsule", position: [0.2, 1.15, 0], radius: 0.19, length: 0.35 },
+  "leg.upper.right": { kind: "capsule", position: [-0.2, 1.15, 0], radius: 0.19, length: 0.35 },
+  "leg.knee.left": { kind: "sphere", position: [0.2, 0.9, 0], radius: 0.17 },
+  "leg.knee.right": { kind: "sphere", position: [-0.2, 0.9, 0], radius: 0.17 },
+  // calf = back of the lower leg, shin = front; each stops short of the
+  // opposite face's skin so tints stay on their own side
+  "leg.calf.left": { kind: "capsule", position: [0.2, 0.62, -0.045], radius: 0.155, length: 0.3 },
+  "leg.calf.right": { kind: "capsule", position: [-0.2, 0.62, -0.045], radius: 0.155, length: 0.3 },
+  "leg.shin.left": { kind: "capsule", position: [0.2, 0.62, 0.045], radius: 0.155, length: 0.3 },
+  "leg.shin.right": { kind: "capsule", position: [-0.2, 0.62, 0.045], radius: 0.155, length: 0.3 },
+  "leg.ankle.left": { kind: "sphere", position: [0.2, 0.33, 0], radius: 0.15 },
+  "leg.ankle.right": { kind: "sphere", position: [-0.2, 0.33, 0], radius: 0.15 },
   "foot.left": {
-    kind: "sphere", position: [0.2, 0.09, 0.08], radius: 0.115, scale: [0.8, 0.55, 1.4],
+    kind: "sphere", position: [0.2, 0.09, 0.09], radius: 0.13, scale: [1.1, 0.8, 1.9],
   },
   "foot.right": {
-    kind: "sphere", position: [-0.2, 0.09, 0.08], radius: 0.115, scale: [0.8, 0.55, 1.4],
+    kind: "sphere", position: [-0.2, 0.09, 0.09], radius: 0.13, scale: [1.1, 0.8, 1.9],
   },
+  // Toes protrude past the foot volume's front to win the raycast there.
   "foot.toes.left": {
-    kind: "sphere", position: [0.2, 0.07, 0.2], radius: 0.055, scale: [1.3, 0.75, 1],
+    kind: "sphere", position: [0.2, 0.07, 0.24], radius: 0.08, scale: [1.5, 0.8, 1.5],
   },
   "foot.toes.right": {
-    kind: "sphere", position: [-0.2, 0.07, 0.2], radius: 0.055, scale: [1.3, 0.75, 1],
+    kind: "sphere", position: [-0.2, 0.07, 0.24], radius: 0.08, scale: [1.5, 0.8, 1.5],
   },
 };
 
