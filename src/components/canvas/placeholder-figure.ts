@@ -38,19 +38,24 @@ export const FIGURE: Record<RegionId, RegionMeshSpec> = {
   },
   "neck.front": { kind: "capsule", position: [0, 2.92, 0.04], radius: 0.075, length: 0.14 },
   "neck.back": { kind: "capsule", position: [0, 2.92, -0.04], radius: 0.075, length: 0.14 },
+  // Chest panels overlap across the midline and reach the neck so no
+  // front-facing ray can slip between them to a back proxy (sternum-notch
+  // gap caused front taps to resolve to "Upper back").
   "torso.chest.left.anterior": {
-    kind: "sphere", position: [0.19, 2.5, 0.12], radius: 0.3, scale: [0.75, 0.95, 0.45],
+    kind: "sphere", position: [0.15, 2.5, 0.12], radius: 0.3, scale: [0.8, 1.1, 0.45],
   },
   "torso.chest.right.anterior": {
-    kind: "sphere", position: [-0.19, 2.5, 0.12], radius: 0.3, scale: [0.75, 0.95, 0.45],
+    kind: "sphere", position: [-0.15, 2.5, 0.12], radius: 0.3, scale: [0.8, 1.1, 0.45],
   },
-  "torso.chest.breast.left": { kind: "sphere", position: [0.17, 2.4, 0.1], radius: 0.11 },
-  "torso.chest.breast.right": { kind: "sphere", position: [-0.17, 2.4, 0.1], radius: 0.11 },
+  // Breast proxies must protrude past the chest panels' front surface
+  // (z 0.26 > chest 0.255) or the chest always wins the raycast.
+  "torso.chest.breast.left": { kind: "sphere", position: [0.16, 2.38, 0.17], radius: 0.09 },
+  "torso.chest.breast.right": { kind: "sphere", position: [-0.16, 2.38, 0.17], radius: 0.09 },
   "torso.abdomen.upper.anterior": {
-    kind: "sphere", position: [0, 2.1, 0.1], radius: 0.3, scale: [1.1, 0.6, 0.45],
+    kind: "sphere", position: [0, 2.1, 0.1], radius: 0.3, scale: [1.3, 0.6, 0.45],
   },
   "torso.abdomen.lower.anterior": {
-    kind: "sphere", position: [0, 1.78, 0.1], radius: 0.3, scale: [1.1, 0.6, 0.45],
+    kind: "sphere", position: [0, 1.78, 0.1], radius: 0.3, scale: [1.3, 0.6, 0.45],
   },
   "torso.pelvis.anterior": {
     kind: "sphere", position: [0, 1.54, 0.08], radius: 0.24, scale: [0.9, 0.5, 0.35],
@@ -58,11 +63,13 @@ export const FIGURE: Record<RegionId, RegionMeshSpec> = {
   "torso.groin": {
     kind: "sphere", position: [0, 1.43, 0.05], radius: 0.1, scale: [0.8, 0.5, 0.5],
   },
+  // Back panels are clamped entirely into the back half (max z ≈ -0.002)
+  // so they can never catch a ray that slipped past the front proxies.
   "torso.back.upper": {
-    kind: "sphere", position: [0, 2.5, -0.12], radius: 0.32, scale: [1.25, 0.9, 0.42],
+    kind: "sphere", position: [0, 2.5, -0.13], radius: 0.32, scale: [1.2, 0.9, 0.4],
   },
   "torso.back.lower": {
-    kind: "sphere", position: [0, 1.98, -0.12], radius: 0.32, scale: [1.1, 0.8, 0.42],
+    kind: "sphere", position: [0, 1.98, -0.13], radius: 0.32, scale: [1.05, 0.8, 0.4],
   },
   "shoulder.left": { kind: "sphere", position: [0.45, 2.7, 0], radius: 0.12 },
   "shoulder.right": { kind: "sphere", position: [-0.45, 2.7, 0], radius: 0.12 },
