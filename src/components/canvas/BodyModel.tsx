@@ -71,6 +71,36 @@ export function BodyModel() {
     [],
   );
 
+  // Dev-only proxy visualization for mesh alignment passes: open the app
+  // with ?proxies=1 to see every proxy volume tinted at 20% opacity.
+  const debugProxies =
+    process.env.NODE_ENV === "development" &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("proxies") === "1";
+
+  const debugMaterials = useMemo(() => {
+    if (!debugProxies) return null;
+    const map = new Map<RegionId, THREE.MeshBasicMaterial>();
+    regionIds.forEach((id, i) => {
+      map.set(
+        id,
+        new THREE.MeshBasicMaterial({
+          // golden-ratio hue steps give adjacent regions distinct colors
+          color: new THREE.Color().setHSL((i * 0.618034) % 1, 0.7, 0.5),
+          transparent: true,
+          opacity: 0.2,
+          depthWrite: false,
+        }),
+      );
+    });
+    return map;
+  }, [debugProxies, regionIds]);
+
+  useEffect(
+    () => () => debugMaterials?.forEach((m) => m.dispose()),
+    [debugMaterials],
+  );
+
   // Depth-tested (so it hides when the camera is on the far side of the
   // body) but never depth-written; negative polygon offset wins ties where
   // the overlay surface nearly coincides with the skin. Combined with the
@@ -82,6 +112,9 @@ export function BodyModel() {
         transparent: true,
         opacity: 0,
         depthWrite: false,
+        // explicit: far hemisphere of the inflated shell must be culled,
+        // never rendered as a rim around the silhouette
+        side: THREE.FrontSide,
         polygonOffset: true,
         polygonOffsetFactor: -1,
         polygonOffsetUnits: -1,
@@ -168,7 +201,7 @@ export function BodyModel() {
             key={id}
             ref={(mesh) => mesh?.layers.enable(REGION_RAYCAST_LAYER)}
             geometry={geometries.get(id)}
-            material={proxyMaterial}
+            material={debugMaterials?.get(id) ?? proxyMaterial}
             position={t.position}
             scale={t.scale}
             rotation={t.rotation}

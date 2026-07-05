@@ -15,17 +15,11 @@ export const VISUAL_TARGET_HEIGHT = 3.6;
  * balloon. Per-region overrides for thin proxies where the default reads
  * too fat.
  */
-export const OVERLAY_INFLATE_DEFAULT = 0.05;
+export const OVERLAY_INFLATE_DEFAULT = 0.025;
 
 export const OVERLAY_INFLATE_OVERRIDES: Partial<Record<RegionId, number>> = {
-  "neck.front": 0.03,
-  "neck.back": 0.03,
-  "head.ear.left": 0.03,
-  "head.ear.right": 0.03,
-  "hand.fingers.left": 0.035,
-  "hand.fingers.right": 0.035,
-  "foot.toes.left": 0.035,
-  "foot.toes.right": 0.035,
+  // deeper-buried proxies need more displacement to clear the skin
+  "torso.pelvis.anterior": 0.04,
   "torso.groin": 0.04,
 };
 
