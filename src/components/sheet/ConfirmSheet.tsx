@@ -1,18 +1,26 @@
 "use client";
 
 import { Drawer } from "vaul";
-import { NEIGHBORS, type RegionId } from "@/data/regions";
+import {
+  neighborsForVariant,
+  type BodyVariant,
+  type RegionId,
+} from "@/data/regions";
 import { useSession } from "@/store/session";
 import { en, regionLabel } from "@/i18n/en";
-import { regionCentroid } from "@/components/canvas/placeholder-figure";
+import { regionAnchor } from "@/components/canvas/body-variants";
 
 /**
  * Direction hint for an Adjust chip ("Higher — Left shoulder"), derived from
- * placeholder centroids. Dominant axis wins; anatomical left = +x.
+ * proxy centroids. Dominant axis wins; anatomical left = +x.
  */
-function directionHint(from: RegionId, to: RegionId): string {
-  const [fx, fy, fz] = regionCentroid(from);
-  const [tx, ty, tz] = regionCentroid(to);
+function directionHint(
+  variant: BodyVariant,
+  from: RegionId,
+  to: RegionId,
+): string {
+  const [fx, fy, fz] = regionAnchor(variant, from);
+  const [tx, ty, tz] = regionAnchor(variant, to);
   const dx = tx - fx;
   const dy = ty - fy;
   const dz = tz - fz;
@@ -25,6 +33,7 @@ function directionHint(from: RegionId, to: RegionId): string {
 }
 
 export function ConfirmSheet() {
+  const variant = useSession((s) => s.bodyVariant) ?? "body-a";
   const pending = useSession((s) => s.pending);
   const reviewPinId = useSession((s) => s.reviewPinId);
   const pins = useSession((s) => s.pins);
@@ -68,7 +77,7 @@ export function ConfirmSheet() {
           {pending && (
             <>
               <Drawer.Title className="font-display text-section text-ink">
-                {regionLabel(pending.regionId)}
+                {regionLabel(pending.regionId, variant)}
               </Drawer.Title>
               <p className="mt-1 text-body text-ink">{en.confirm.question}</p>
 
@@ -91,16 +100,18 @@ export function ConfirmSheet() {
                 <div className="mt-4">
                   <p className="text-chip text-slate">{en.confirm.adjustHint}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {NEIGHBORS[pending.regionId].map((neighborId) => (
-                      <button
-                        key={neighborId}
-                        onClick={() => selectRegion(neighborId)}
-                        className="min-h-11 rounded-chip border border-line bg-card px-4 py-2 text-chip text-ink"
-                      >
-                        {directionHint(pending.regionId, neighborId)} —{" "}
-                        {regionLabel(neighborId)}
-                      </button>
-                    ))}
+                    {neighborsForVariant(pending.regionId, variant).map(
+                      (neighborId) => (
+                        <button
+                          key={neighborId}
+                          onClick={() => selectRegion(neighborId)}
+                          className="min-h-11 rounded-chip border border-line bg-card px-4 py-2 text-chip text-ink"
+                        >
+                          {directionHint(variant, pending.regionId, neighborId)}{" "}
+                          — {regionLabel(neighborId, variant)}
+                        </button>
+                      ),
+                    )}
                   </div>
                 </div>
               )}
@@ -111,7 +122,7 @@ export function ConfirmSheet() {
             <>
               <Drawer.Title className="font-display text-section text-ink">
                 {en.pin.title(reviewIndex + 1)} —{" "}
-                {regionLabel(reviewPin.location.regionId)}
+                {regionLabel(reviewPin.location.regionId, variant)}
               </Drawer.Title>
               <div className="mt-5 flex gap-3">
                 <button

@@ -1,9 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Preload, StatsGl } from "@react-three/drei";
 import { en } from "@/i18n/en";
 import { BodyModel, REGION_RAYCAST_LAYER } from "./BodyModel";
+import { BodyVisual } from "./BodyVisual";
 import { Pins } from "./Pins";
 
 const CAMERA_DISTANCE = 4.6;
@@ -27,6 +29,9 @@ export function Scene() {
       <directionalLight position={[3, 2, 1]} intensity={0.4} />
       <hemisphereLight intensity={0.5} groundColor="#E3E8E6" />
 
+      <Suspense fallback={null}>
+        <BodyVisual />
+      </Suspense>
       <BodyModel />
       <Pins />
 

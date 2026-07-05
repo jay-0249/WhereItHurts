@@ -60,8 +60,29 @@ their pain, everything teal relates to actions they can take.
   load for marginal value. Rail: capture flow stays minimal; anatomy exploration is a
   separate, optional room. Do not add layer toggles or section controls to the
   capture canvas.
-- Selected region: ember emissive glow + a thin 1.5px outline pass (`--ember`).
+- Selected region: translucent ember overlay + a thin 1.5px outline pass (`--ember`).
 - Hovered region (desktop): outline only, no fill, cursor pointer.
+
+### Visual & interaction layer split, and body variants
+
+- **Two decoupled layers.** The tappable regions are invisible proxy volumes
+  (capsules/spheres, one per region ID) on a dedicated raycast layer; taps only
+  ever test proxies. The realistic body is a single continuous glTF mesh in the
+  clay material, purely decorative, excluded from raycasting entirely. Region
+  segmentation lives in the proxy layer, so the visual asset needs no
+  per-region material groups.
+- **Selection highlight** = the hit proxy re-rendered as a translucent ember
+  overlay (`--ember` at 35% opacity, no depth write, inflated slightly along
+  its vertex normals so it sits just above the visual surface) plus the
+  world-space outline. Hover (desktop) = outline only. The overlay fades in
+  over 200ms like the previous emissive glow.
+- **Body variants.** Two body builds, internal keys `body-a` / `body-b`. UI
+  copy NEVER uses gendered words ("male"/"female" are banned in user-facing
+  strings). First visit shows a chooser — "Choose the body that looks most
+  like yours" with the caption "You can change this anytime." — with two
+  abstract figure thumbnails; a small chip on the canvas reopens it. Region
+  availability (e.g. breast regions) and pelvic region labels can vary per
+  variant via the region tree's `variants` field and the i18n dictionary.
 
 ### Typography
 

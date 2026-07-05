@@ -5,9 +5,10 @@ import { motion } from "motion/react";
 import { isRegionId } from "@/data/regions";
 import { useSession } from "@/store/session";
 import { en, regionLabel } from "@/i18n/en";
-import { regionCentroid } from "./placeholder-figure";
+import { regionAnchor } from "./body-variants";
 
 export function Pins() {
+  const variant = useSession((s) => s.bodyVariant) ?? "body-a";
   const pins = useSession((s) => s.pins);
   const openPinReview = useSession((s) => s.openPinReview);
 
@@ -16,7 +17,7 @@ export function Pins() {
       {pins.map((pin, index) => {
         const { regionId } = pin.location;
         if (!isRegionId(regionId)) return null;
-        const [x, y, z] = regionCentroid(regionId);
+        const [x, y, z] = regionAnchor(variant, regionId);
         return (
           <Html
             key={pin.id}
@@ -30,7 +31,10 @@ export function Pins() {
               animate={{ scale: 1 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
               onClick={() => openPinReview(pin.id)}
-              aria-label={en.pin.ariaLabel(index + 1, regionLabel(regionId))}
+              aria-label={en.pin.ariaLabel(
+                index + 1,
+                regionLabel(regionId, variant),
+              )}
               className="flex h-7 w-7 items-center justify-center rounded-chip bg-ember text-chip font-medium text-card shadow-card"
             >
               {index + 1}
