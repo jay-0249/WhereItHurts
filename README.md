@@ -65,7 +65,7 @@ The API key is read only in the server route. It is never exposed to the client 
 
 ## Licensing and attribution
 
-Code is MIT licensed. The 3D body asset derives from open anatomical sources (BodyParts3D, CC BY-SA, Database Center for Life Science; and related open anatomy projects) and is therefore distributed under CC BY-SA with attribution. See ASSETS-LICENSE for details.
+Code is MIT licensed. The 3D body meshes are planned to be exported from MakeHuman (CC0 — no attribution required); if open anatomy sources (BodyParts3D and related projects, CC BY-SA) are used as a fallback, the derived asset ships under CC BY-SA with attribution. See ASSETS-LICENSE for details.
 
 ## Disclaimer
 

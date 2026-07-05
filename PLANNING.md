@@ -158,22 +158,28 @@ intensity bucket→Severity.
 
 ## 6. 3D asset plan
 
-Phase 1 figure: stylized low-poly androgynous human, ~50 named regions, front/back
-distinct for torso regions. Options in order of preference:
-1. Simplify an open-licensed segmented source: **BodyParts3D** (382 segmented
-   anatomical models, CC BY-SA, attribution required to the Database Center for Life
-   Science), **Z-Anatomy**, or the university-consortium **Open3DModel** derived from
-   both (CC BY-SA). Decimate heavily in Blender into ~50 named material groups,
-   export as glTF with per-region mesh nodes.
-2. Build from a base humanoid mesh segmented in Blender the same way.
-**License obligation (public repo):** CC BY-SA is share-alike — the derived mesh ships
-under the same license, with attribution in README and an ASSETS-LICENSE file.
-Region segmentation is the critical asset requirement — visual fidelity is secondary.
+Phase 1 figure: two realistic body builds (internal keys `body-a` / `body-b`),
+each a single continuous glTF mesh. Selection does NOT depend on segmenting the
+visual mesh: interaction happens on an invisible proxy-volume layer keyed to
+region IDs (see DESIGN.md "Visual & interaction layer split"), so the visual
+asset needs no per-region material groups.
+
+Sources in order of preference:
+1. **Primary: MakeHuman (CC0).** Export the two builds as glTF binary. CC0
+   means no attribution and no share-alike obligation — ASSETS-LICENSE
+   simplifies to a courtesy provenance note, and the README licensing section
+   drops the share-alike language.
+2. Fallback: segment an open anatomy source — **BodyParts3D** (CC BY-SA,
+   attribution to the Database Center for Life Science), **Z-Anatomy**, or
+   **Open3DModel** (CC BY-SA). If used, the derived mesh ships CC BY-SA with
+   attribution in README and ASSETS-LICENSE, as before.
+
 Muscle/bone layers in Phase 1 are simplified shells (same silhouette, different
 material), NOT anatomically individual muscles/bones. Real anatomy layers are Phase 2+
 (Explore mode).
 **Build order rule:** validate raycast selection, confirm loop, and pins against a
-placeholder segmented capsule figure BEFORE investing in the real mesh.
+placeholder segmented capsule figure BEFORE investing in the real mesh. (Done —
+the capsule figure now serves as the permanent proxy layer.)
 
 ## 6b. Stack & infrastructure decisions (settled)
 
