@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { RegionId } from "@/data/regions";
+import type { BodyVariant, RegionId } from "@/data/regions";
 import { regionLabel } from "@/i18n/en";
 
 /** PainRecord conforms to the schema in PLANNING.md §3 exactly — do not add fields ad hoc. */
@@ -61,9 +61,15 @@ interface PendingSelection {
 interface SessionState {
   pins: PainRecord[];
   profile: SessionProfile;
+  /** null until the user picks a body on first visit */
+  bodyVariant: BodyVariant | null;
+  /** true while the chooser overlay is reopened from the canvas chip */
+  choosingBody: boolean;
   pending: PendingSelection | null;
   reviewPinId: string | null;
 
+  setBodyVariant: (variant: BodyVariant) => void;
+  openBodyChooser: () => void;
   selectRegion: (regionId: RegionId) => void;
   startAdjust: () => void;
   confirmPending: () => void;
@@ -78,8 +84,16 @@ export const useSession = create<SessionState>()(
     (set, get) => ({
       pins: [],
       profile: {},
+      bodyVariant: null,
+      choosingBody: false,
       pending: null,
       reviewPinId: null,
+
+      setBodyVariant: (variant) =>
+        set({ bodyVariant: variant, choosingBody: false }),
+
+      openBodyChooser: () =>
+        set({ choosingBody: true, pending: null, reviewPinId: null }),
 
       selectRegion: (regionId) =>
         set({ pending: { regionId, adjusting: false }, reviewPinId: null }),
@@ -101,7 +115,7 @@ export const useSession = create<SessionState>()(
           createdAt: new Date().toISOString(),
           location: {
             regionId: pending.regionId,
-            regionLabel: regionLabel(pending.regionId),
+            regionLabel: regionLabel(pending.regionId, get().bodyVariant),
             mode: "tap",
           },
         };
@@ -125,7 +139,11 @@ export const useSession = create<SessionState>()(
       // sessionStorage, NOT localStorage: pins survive a refresh, health data
       // clears when the tab closes (CLAUDE.md).
       storage: createJSONStorage(() => sessionStorage),
-      partialize: (state) => ({ pins: state.pins, profile: state.profile }),
+      partialize: (state) => ({
+        pins: state.pins,
+        profile: state.profile,
+        bodyVariant: state.bodyVariant,
+      }),
     },
   ),
 );

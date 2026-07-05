@@ -29,8 +29,13 @@ export const FIGURE: Record<RegionId, RegionMeshSpec> = {
   "torso.chest.right.anterior": {
     kind: "sphere", position: [-0.19, 2.5, 0.12], radius: 0.3, scale: [0.8, 1, 0.5],
   },
+  "torso.chest.breast.left": { kind: "sphere", position: [0.18, 2.36, 0.2], radius: 0.13 },
+  "torso.chest.breast.right": { kind: "sphere", position: [-0.18, 2.36, 0.2], radius: 0.13 },
   "torso.abdomen.anterior": {
     kind: "sphere", position: [0, 1.98, 0.12], radius: 0.32, scale: [1.15, 0.85, 0.45],
+  },
+  "torso.pelvis.anterior": {
+    kind: "sphere", position: [0, 1.5, 0.12], radius: 0.24, scale: [1, 0.6, 0.5],
   },
   "torso.back.upper": {
     kind: "sphere", position: [0, 2.5, -0.12], radius: 0.32, scale: [1.3, 0.95, 0.45],
