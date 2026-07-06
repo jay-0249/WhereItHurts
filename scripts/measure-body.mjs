@@ -216,17 +216,21 @@ function measure(name) {
     }
   }
   assert(armSamples.length > 5, `${name}: arm samples (${armSamples.length})`);
-  const handBottomY = Math.min(...armSamples.map((s) => s.y));
+  // slicing loses the thin decimated hand below the wrist, so the sampled
+  // minimum under-measures badly; use anatomical hand length (~0.10H)
+  // from the wrist unless the samples genuinely reach lower
+  const sampledBottomY = Math.min(...armSamples.map((s) => s.y));
   let wrist = { y: 0, halfWidth: Infinity };
   for (const s of armSamples) {
     if (
-      s.y >= handBottomY + 0.02 * H &&
-      s.y <= handBottomY + 0.09 * H &&
+      s.y >= sampledBottomY + 0.02 * H &&
+      s.y <= sampledBottomY + 0.09 * H &&
       s.halfWidth < wrist.halfWidth
     ) {
       wrist = { y: s.y, halfWidth: s.halfWidth };
     }
   }
+  const handBottomY = Math.min(sampledBottomY, wrist.y - 0.1 * H);
   // The rest pose has natural elbow flexion (forearm angles forward, hands
   // in front of the thighs), so the arm is a two-segment polyline through
   // measured slice centroids, not one straight line.
@@ -255,7 +259,7 @@ function measure(name) {
   const upperSamples = armSamples.filter((s) => s.y >= elbowSample.y);
   const armRadius =
     upperSamples.reduce((a, s) => a + s.halfWidth, 0) / upperSamples.length;
-  const handSample = sampleNearest(handBottomY + 0.025 * H);
+  const handSample = sampleNearest(sampledBottomY + 0.025 * H);
 
   // neck / chin / head — the narrowest slice above the shoulders is the
   // neck (a wider x-window would catch the trapezius slope instead);

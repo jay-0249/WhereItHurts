@@ -109,9 +109,11 @@ export function buildFigureFromLandmarks(lm) {
     lm.head.halfWidth * 0.85, 0.08, 0.13,
   );
   const jawCz = headCZ + (lm.head.zMax - headCZ) * 0.5;
+  // wide enough to own the jaw-angle / under-ear corners, or front rays
+  // there slip through to the occiput's front face
   figure["head.jaw"] = ellipsoid(
     0, lm.chinY + 0.16 * headHeight, jawCz,
-    lm.head.halfWidth * 0.85, 0.09, lm.head.zMax - jawCz + 0.09,
+    lm.head.halfWidth * 1.15, 0.09, lm.head.zMax - jawCz + 0.09,
   );
 
   /* ---- neck ----
@@ -120,7 +122,7 @@ export function buildFigureFromLandmarks(lm) {
    * tilted forward about x to follow the neck's natural lean — a vertical
    * capsule at fixed z grazes the throat and tints only its ends. */
   const neckR = lm.neck.halfWidth;
-  const neckTipTop = lm.chinY - 0.06;
+  const neckTipTop = lm.chinY - 0.01; // reaches the under-chin skin
   // reaches below the shoulder line so the sternal-notch zone can't open a
   // front hole for rays to reach the upper back
   const neckTipBot = lm.shoulder.y - 0.02;
@@ -130,16 +132,19 @@ export function buildFigureFromLandmarks(lm) {
   // z windows from the measured neck slice: front owns mid..front skin,
   // back owns back skin..mid, each with outward margin
   const neckMidZ = (lm.neck.zMin + lm.neck.zMax) / 2;
-  const neckCapsule = (zBack, zFront) => ({
+  const neckCapsule = (zBack, zFront, xScale) => ({
     kind: "capsule",
     position: [0, neckCY, (zBack + zFront) / 2],
     radius: neckR,
     length: neckLen,
-    scale: [1, 1, (zFront - zBack) / 2 / neckR],
+    // x widened for the skull base / occiput flare above the narrow throat
+    scale: [xScale, 1, (zFront - zBack) / 2 / neckR],
     rotation: [NECK_LEAN, 0, 0],
   });
-  figure["neck.front"] = neckCapsule(neckMidZ - 0.02, lm.neck.zMax + 0.06);
-  figure["neck.back"] = neckCapsule(lm.neck.zMin - 0.06, neckMidZ + 0.02);
+  // both tubes share the occiput width: a narrower front tube would let
+  // front rays at the neck's sides thread through to the back tube's face
+  figure["neck.front"] = neckCapsule(neckMidZ - 0.06, lm.neck.zMax + 0.06, 1.7);
+  figure["neck.back"] = neckCapsule(lm.neck.zMin - 0.12, neckMidZ + 0.02, 1.7);
 
   /* ---- front torso ---- */
   const chest = lm.torsoSlices.chest;
@@ -203,9 +208,11 @@ export function buildFigureFromLandmarks(lm) {
       0, (pelvisTopY + lm.crotchY) / 2, (front + backStop) / 2,
       lm.hip.halfWidth * 0.8, (pelvisTopY - lm.crotchY) / 2 + M * 0.6, (front - backStop) / 2,
     );
+    // reaches below the crotch so front rays at the perineum/inner-thigh
+    // line hit groin, not the lower back's grown bottom
     figure["torso.groin"] = ellipsoid(
-      0, lm.crotchY + 0.02, pelvisS.zMax * 0.3,
-      lm.hip.halfWidth * 0.4, 0.1, pelvisS.zMax * 0.5 + 0.12,
+      0, lm.crotchY - 0.04, pelvisS.zMax * 0.3,
+      lm.hip.halfWidth * 0.4, 0.16, pelvisS.zMax * 0.5 + 0.12,
     );
   }
 
@@ -216,30 +223,46 @@ export function buildFigureFromLandmarks(lm) {
     const frontStop = chest.zMax * 0.3;
     // wide and tall enough that back-camera rays can't clip past the
     // ellipsoid corner into front panels' rear faces
+    const backUpTop = lm.shoulder.y + 0.08;
+    const backUpBot = midBack - 0.06;
     figure["torso.back.upper"] = ellipsoid(
-      0, (lm.shoulder.y + 0.02 + midBack) / 2, (frontStop + backReach) / 2,
-      Math.max(chest.halfWidth + M + 0.04, lm.shoulder.halfWidth * 0.85),
-      (lm.shoulder.y + 0.02 - midBack) / 2 + M * 1.5,
+      0, (backUpTop + backUpBot) / 2, (frontStop + backReach) / 2,
+      Math.max(chest.halfWidth + 0.1, lm.shoulder.halfWidth),
+      (backUpTop - backUpBot) / 2 + M * 1.5,
       (frontStop - backReach) / 2,
     );
-    const backReachL = Math.min(waistS.zMin, hipS.zMin) - M;
-    const frontStopL = waistS.zMax * 0.3;
-    // reaches the crotch line: a gap here lets back-camera rays sail
-    // through the buttock zone to front volumes (groin)
-    const backLowBot = lm.crotchY + 0.02;
+    // deep back margin: the glutes protrude past the waist/hip slice
+    // measurements taken above them
+    const backReachL = Math.min(waistS.zMin, hipS.zMin) - 0.14;
+    // strictly behind the front volumes' faces even at their thin flank
+    // corners, so front-camera flank rays never claim the lower back
+    const frontStopL = waistS.zMax * 0.3 - 0.05;
+    // reaches below the crotch line: a gap here lets back-camera rays sail
+    // through the buttock zone to front volumes (groin), and the gluteal
+    // fold needs the ellipsoid's bottom corner to stay thick
+    const backLowBot = lm.crotchY - 0.12;
     figure["torso.back.lower"] = ellipsoid(
       0, (midBack + backLowBot) / 2, (frontStopL + backReachL) / 2,
-      abdRX, (midBack - backLowBot) / 2 + M * 0.7, (frontStopL - backReachL) / 2,
+      abdRX, (midBack - backLowBot) / 2 + M * 1.2, (frontStopL - backReachL) / 2,
     );
   }
 
   /* ---- shoulders & arms (left measured, right mirrored) ---- */
   {
-    const r = Math.max(0.17, (lm.shoulder.y - lm.armpitY) * 0.75);
-    const spec = {
-      ...sphere(lm.shoulder.halfWidth * 0.88, lm.shoulder.y + 0.01, lm.arm.top[2], r),
-      scale: [1, 1, 1.15],
-    };
+    // Shoulder owns the deltoid cap AND the trapezius slope (pain-map
+    // convention: neck<->shoulder gap belongs to the shoulder side).
+    // Inner edge stops just off the neck tube; the front face stops short
+    // of the chest panel so upper-chest taps keep resolving to chest;
+    // the back face stays shallower than back.upper so scapula taps from
+    // behind resolve to the upper back.
+    const innerX = 0.1;
+    const outerX = lm.shoulder.halfWidth * 1.35;
+    const zFront = chest.zMax - 0.02;
+    const zBack = Math.min(-0.42, chest.zMin - 0.05);
+    const spec = ellipsoid(
+      (innerX + outerX) / 2, lm.shoulder.y + 0.08, (zFront + zBack) / 2,
+      (outerX - innerX) / 2, 0.24, (zFront - zBack) / 2,
+    );
     figure["shoulder.left"] = spec;
     figure["shoulder.right"] = mirrorSpec(spec);
   }
@@ -255,34 +278,52 @@ export function buildFigureFromLandmarks(lm) {
     ];
     const elbowP = lm.arm.elbow;
     const wrist = lm.arm.wrist;
-    const upper = capsuleBetween(top, elbowP, lm.arm.radius + 0.05);
-    const fore = capsuleBetween(elbowP, wrist, lm.arm.radius + 0.04);
+    // z-deepened: the posterior axillary fold / triceps bulge belongs to
+    // the upper arm (pain-map convention for the arm-torso border)
+    const upper = {
+      ...capsuleBetween(top, elbowP, lm.arm.radius + 0.05),
+      scale: [1, 1, 1.5],
+    };
+    // forearm bows forward of the straight elbow->wrist axis: shifted and
+    // widened toward +z only, so it doesn't shadow the torso flank behind
+    const fore = {
+      ...capsuleBetween(
+        [elbowP[0], elbowP[1], elbowP[2] + 0.05],
+        [wrist[0], wrist[1], wrist[2] + 0.05],
+        lm.arm.radius + 0.07,
+      ),
+      scale: [1, 1, 1.35],
+    };
     figure["arm.upper.left"] = upper;
     figure["arm.upper.right"] = mirrorSpec(upper);
-    figure["arm.elbow.left"] = sphere(...elbowP, lm.arm.radius + 0.07);
+    figure["arm.elbow.left"] = {
+      ...sphere(...elbowP, lm.arm.radius + 0.09),
+      scale: [1, 1, 1.3],
+    };
     figure["arm.elbow.right"] = mirrorSpec(figure["arm.elbow.left"]);
     figure["arm.fore.left"] = fore;
     figure["arm.fore.right"] = mirrorSpec(fore);
-    figure["arm.wrist.left"] = sphere(...wrist, lm.arm.wristRadius + 0.06);
+    figure["arm.wrist.left"] = sphere(...wrist, lm.arm.wristRadius + 0.1);
     figure["arm.wrist.right"] = mirrorSpec(figure["arm.wrist.left"]);
 
-    // hand continues along the forearm direction below the wrist
-    const handTopY = lm.arm.wristY - 0.01;
+    // hand continues along the forearm direction below the wrist; a tall
+    // ellipsoid whose front face beats the wrist sphere so palm taps
+    // resolve to the hand
+    const handTopY = lm.arm.wristY - 0.02;
     const handBotY = lm.arm.handBottomY;
     const handMidY = (handTopY + handBotY) / 2;
     const s = (wrist[1] - handMidY) / Math.max(0.01, elbowP[1] - wrist[1]);
     const handX = wrist[0] + (wrist[0] - elbowP[0]) * s;
-    const handR = (handTopY - handBotY) / 2 + 0.05;
-    const handZHalf = lm.arm.hand.zHalf + 0.05;
+    const handRy = (handTopY - handBotY) / 2 + 0.03;
     figure["hand.left"] = {
-      ...sphere(handX, handMidY, lm.arm.hand.cz, handR),
-      scale: [1, 1, Math.max(1, handZHalf / handR)],
+      ...sphere(handX, handMidY, lm.arm.hand.cz, handRy),
+      scale: [0.13 / handRy, 1, (lm.arm.hand.zHalf + 0.1) / handRy],
     };
     figure["hand.right"] = mirrorSpec(figure["hand.left"]);
-    // fingers protrude below and in front of the hand volume
+    // fingers: distal third, protruding below and in front of the hand
     const fingers = {
-      ...sphere(handX, handBotY - 0.01, lm.arm.hand.cz + 0.02, 0.09),
-      scale: [1.1, 0.8, Math.max(1, (lm.arm.hand.zHalf + 0.07) / 0.09)],
+      ...sphere(handX, handBotY + 0.05, lm.arm.hand.cz + 0.02, 0.1),
+      scale: [1.2, 1, (lm.arm.hand.zHalf + 0.12) / 0.1],
     };
     figure["hand.fingers.left"] = fingers;
     figure["hand.fingers.right"] = mirrorSpec(fingers);
@@ -290,10 +331,14 @@ export function buildFigureFromLandmarks(lm) {
 
   /* ---- hips & legs ---- */
   {
+    // lateral reach capped at skin + margin: an overreaching hip volume
+    // intercepts rays headed for the forearm hanging beside it
+    const hipInner = lm.hip.halfWidth * 0.35;
+    const hipOuter = lm.hip.halfWidth + 0.1;
     const spec = ellipsoid(
-      lm.hip.halfWidth * 0.72, (pelvisTopY + lm.crotchY) / 2, (hipS.zMax + hipS.zMin) / 2,
-      lm.hip.halfWidth * 0.5 + M, (pelvisTopY - lm.crotchY) / 2 + M,
-      (hipS.zMax - hipS.zMin) / 2 + M,
+      (hipInner + hipOuter) / 2, (pelvisTopY + lm.crotchY) / 2, (hipS.zMax + hipS.zMin) / 2,
+      (hipOuter - hipInner) / 2, (pelvisTopY - lm.crotchY) / 2 + M,
+      (hipS.zMax - hipS.zMin) / 2 + 0.12,
     );
     figure["hip.left"] = spec;
     figure["hip.right"] = mirrorSpec(spec);

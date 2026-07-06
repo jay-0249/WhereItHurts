@@ -120,8 +120,9 @@ function buildProbes(lm: BodyLandmarks, variant: BodyVariant): Probe[] {
     { name: "mid-forearm left", camera: "left", point: mid(arm.elbow, arm.wrist), expect: "arm.fore.left" },
     { name: "wrist left", camera: "left", point: arm.wrist as [number, number, number], expect: "arm.wrist.left" },
     {
+      // mid-palm, clear of the wrist sphere above it
       name: "palm left", camera: "front",
-      point: [arm.wrist[0], arm.wristY - 0.02, arm.hand.cz],
+      point: [arm.wrist[0], (arm.wristY - 0.02 + arm.handBottomY) / 2, arm.hand.cz],
       expect: "hand.left",
     },
     {
@@ -146,8 +147,15 @@ function buildProbes(lm: BodyLandmarks, variant: BodyVariant): Probe[] {
       expect: "shoulder.left",
     },
     {
+      // z at the measured flank depth: z=0 sits in front of the actual hip
+      // skin (this frame's z-center is skewed by the forward hands) and the
+      // hanging forearm intercepts rays aimed there
       name: "hip crest left", camera: "left",
-      point: [lm.hip.halfWidth * 0.72, (pelvisTop + lm.crotchY) / 2, 0],
+      point: [
+        lm.hip.halfWidth * 0.72,
+        (pelvisTop + lm.crotchY) / 2,
+        (lm.torsoSlices.hip.zMin + lm.torsoSlices.hip.zMax) / 2,
+      ],
       expect: "hip.left",
     },
     {
