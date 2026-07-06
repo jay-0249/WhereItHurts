@@ -41,7 +41,8 @@ page.on("console", (message) => {
 });
 page.on("pageerror", (error) => console.log(`PAGEERROR: ${error.message}`));
 
-await page.goto("http://localhost:3000/", { waitUntil: "networkidle" });
+const query = process.env.VISUAL_CHECK_QUERY ?? ""; // e.g. "?atlas=1"
+await page.goto(`http://localhost:3000/${query}`, { waitUntil: "networkidle" });
 await page.waitForFunction(() => window.__wih !== undefined);
 await page.evaluate((v) => window.__wih.getState().setBodyVariant(v), variant);
 await page.waitForTimeout(3000); // glb load + first frames

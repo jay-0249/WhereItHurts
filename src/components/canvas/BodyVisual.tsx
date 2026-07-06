@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { useSession } from "@/store/session";
-import { isRegionId } from "@/data/regions";
+import { isRegionId, regionsForVariant } from "@/data/regions";
 import { computeFitFromBounds, fitsMatch } from "@/lib/body-fit.mjs";
 import {
   BODY_VARIANTS,
@@ -17,6 +17,7 @@ import {
 const SELECT_OPACITY = 0.35; // ember wash at 35% (DESIGN.md)
 const HOVER_OPACITY = 0.15;
 const FADE_SECONDS = 0.2; // fades in over 200ms (DESIGN.md §4)
+const ATLAS_MAX = 48;
 
 interface TintShader {
   uniforms: Record<string, THREE.IUniform>;
@@ -41,6 +42,15 @@ export function BodyVisual() {
 
   const shaderRef = useRef<TintShader | null>(null);
 
+  // Dev-only region atlas (?atlas=1): every proxy volume tinted at once in
+  // distinct hues, so coverage holes appear as untinted grey skin. Clicking
+  // still selects normally (proxies are untouched).
+  const atlasMode =
+    process.env.NODE_ENV === "development" &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("atlas") === "1";
+  const lastAtlasVariantRef = useRef<string | null>(null);
+
   const clayMaterial = useMemo(() => {
     const mat = new THREE.MeshStandardMaterial({
       color: "#C9B8A8",
@@ -57,6 +67,16 @@ export function BodyVisual() {
         uTintOpacity: { value: 0 },
         uTintColor: { value: new THREE.Color("#E4572E") },
       });
+      if (atlasMode) {
+        Object.assign(shader.uniforms, {
+          uAtlasCount: { value: 0 },
+          uAtlasPos: { value: Array.from({ length: ATLAS_MAX }, () => new THREE.Vector3()) },
+          uAtlasScale: { value: Array.from({ length: ATLAS_MAX }, () => new THREE.Vector3(1, 1, 1)) },
+          uAtlasRotInv: { value: Array.from({ length: ATLAS_MAX }, () => new THREE.Matrix3()) },
+          uAtlasShape: { value: Array.from({ length: ATLAS_MAX }, () => new THREE.Vector4()) },
+          uAtlasColor: { value: Array.from({ length: ATLAS_MAX }, () => new THREE.Color()) },
+        });
+      }
       shader.vertexShader =
         "varying vec3 vTintWorldPos;\n" +
         shader.vertexShader.replace(
@@ -66,6 +86,38 @@ export function BodyVisual() {
             "  vTintWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;",
           ].join("\n"),
         );
+      const atlasDeclarations = atlasMode
+        ? [
+            "uniform int uAtlasCount;",
+            `uniform vec3 uAtlasPos[${ATLAS_MAX}];`,
+            `uniform vec3 uAtlasScale[${ATLAS_MAX}];`,
+            `uniform mat3 uAtlasRotInv[${ATLAS_MAX}];`,
+            `uniform vec4 uAtlasShape[${ATLAS_MAX}];`,
+            `uniform vec3 uAtlasColor[${ATLAS_MAX}];`,
+          ]
+        : [];
+      const atlasBody = atlasMode
+        ? [
+            "{",
+            "  vec3 bestColor = vec3(0.0);",
+            "  float bestD = 1e9;",
+            `  for (int i = 0; i < ${ATLAS_MAX}; i++) {`,
+            "    if (i >= uAtlasCount) break;",
+            "    vec3 p = (uAtlasRotInv[i] * (vTintWorldPos - uAtlasPos[i])) / uAtlasScale[i];",
+            "    float d;",
+            "    if (uAtlasShape[i].z < 0.5) {",
+            "      d = length(p) - uAtlasShape[i].x;",
+            "    } else {",
+            "      vec3 q = p;",
+            "      q.y -= clamp(q.y, -uAtlasShape[i].y, uAtlasShape[i].y);",
+            "      d = length(q) - uAtlasShape[i].x;",
+            "    }",
+            "    if (d < bestD) { bestD = d; bestColor = uAtlasColor[i]; }",
+            "  }",
+            "  if (bestD < 0.0) gl_FragColor.rgb = mix(gl_FragColor.rgb, bestColor, 0.5);",
+            "}",
+          ]
+        : [];
       shader.fragmentShader =
         [
           "varying vec3 vTintWorldPos;",
@@ -77,6 +129,7 @@ export function BodyVisual() {
           "uniform float uTintKind;",
           "uniform float uTintOpacity;",
           "uniform vec3 uTintColor;",
+          ...atlasDeclarations,
           "",
         ].join("\n") +
         shader.fragmentShader.replace(
@@ -97,12 +150,13 @@ export function BodyVisual() {
             "  float inside = 1.0 - smoothstep(-0.01, 0.01, d);",
             "  gl_FragColor.rgb = mix(gl_FragColor.rgb, uTintColor, uTintOpacity * inside);",
             "}",
+            ...atlasBody,
           ].join("\n"),
         );
       shaderRef.current = shader;
     };
     return mat;
-  }, []);
+  }, [atlasMode]);
   useEffect(() => () => clayMaterial.dispose(), [clayMaterial]);
 
   // Tint animation mutates shader uniforms in useFrame — never React state
@@ -113,6 +167,36 @@ export function BodyVisual() {
     const shader = shaderRef.current;
     if (!shader) return;
     const state = useSession.getState();
+
+    if (atlasMode && lastAtlasVariantRef.current !== variant) {
+      lastAtlasVariantRef.current = variant;
+      const figure = figureForVariant(variant);
+      const ids = regionsForVariant(variant);
+      shader.uniforms.uAtlasCount.value = Math.min(ids.length, ATLAS_MAX);
+      ids.slice(0, ATLAS_MAX).forEach((id, i) => {
+        const spec = figure[id];
+        const resolved = resolveProxy(variant, id);
+        (shader.uniforms.uAtlasPos.value[i] as THREE.Vector3).set(...resolved.position);
+        (shader.uniforms.uAtlasScale.value[i] as THREE.Vector3).set(...resolved.scale);
+        (shader.uniforms.uAtlasRotInv.value[i] as THREE.Matrix3).setFromMatrix4(
+          new THREE.Matrix4()
+            .makeRotationFromEuler(new THREE.Euler(...resolved.rotation))
+            .invert(),
+        );
+        (shader.uniforms.uAtlasShape.value[i] as THREE.Vector4).set(
+          spec.radius,
+          (spec.length ?? 0) / 2,
+          spec.kind === "capsule" ? 1 : 0,
+          0,
+        );
+        // same golden-ratio palette as the ?proxies=1 debug materials
+        (shader.uniforms.uAtlasColor.value[i] as THREE.Color).setHSL(
+          (i * 0.618034) % 1,
+          0.7,
+          0.5,
+        );
+      });
+    }
     const pendingId = state.pending?.regionId ?? null;
     const activeId = pendingId ?? state.hoveredRegion;
     const target = pendingId
