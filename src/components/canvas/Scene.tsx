@@ -4,8 +4,7 @@ import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Preload, StatsGl } from "@react-three/drei";
 import { en } from "@/i18n/en";
-import { BodyModel, REGION_RAYCAST_LAYER } from "./BodyModel";
-import { BodyVisual } from "./BodyVisual";
+import { BodyVisual, REGION_RAYCAST_LAYER } from "./BodyVisual";
 import { Pins } from "./Pins";
 
 const CAMERA_DISTANCE = 4.6;
@@ -32,7 +31,6 @@ export function Scene() {
       <Suspense fallback={null}>
         <BodyVisual />
       </Suspense>
-      <BodyModel />
       <Pins />
 
       {/* Soft floor shadow disc under the figure — ink at 8%. raycast

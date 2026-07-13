@@ -2,7 +2,12 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { BodyVariant, RegionId } from "@/data/regions";
+import {
+  DEPRECATED_REGIONS,
+  isRegionId,
+  type BodyVariant,
+  type RegionId,
+} from "@/data/regions";
 import { regionLabel } from "@/i18n/en";
 
 /** PainRecord conforms to the schema in PLANNING.md §3 exactly — do not add fields ad hoc. */
@@ -164,6 +169,34 @@ export const useSession = create<SessionState>()(
         profile: state.profile,
         bodyVariant: state.bodyVariant,
       }),
+      version: 2,
+      // v1 -> v2: the region taxonomy was replaced (REGIONS.md). Map stale
+      // ids through the deprecation table; drop pins that cannot map.
+      migrate: (persisted: unknown) => {
+        const state = persisted as {
+          pins?: Array<{
+            location?: { regionId?: string; regionLabel?: string };
+            conditional?: Record<string, string | { travelsToRegionId: string }>;
+          }>;
+        } | null;
+        if (!state?.pins) return state;
+        const mapId = (id: string | undefined) =>
+          id && isRegionId(id) ? id : DEPRECATED_REGIONS[id ?? ""] ?? null;
+        state.pins = state.pins.filter((pin) => {
+          const mapped = mapId(pin.location?.regionId);
+          if (!mapped || !pin.location) return false;
+          pin.location.regionId = mapped;
+          pin.location.regionLabel = regionLabel(mapped);
+          for (const value of Object.values(pin.conditional ?? {})) {
+            if (typeof value === "object" && value.travelsToRegionId) {
+              value.travelsToRegionId =
+                mapId(value.travelsToRegionId) ?? value.travelsToRegionId;
+            }
+          }
+          return true;
+        });
+        return state;
+      },
     },
   ),
 );

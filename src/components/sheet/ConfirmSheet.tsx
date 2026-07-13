@@ -1,15 +1,13 @@
 "use client";
 
 import { Drawer } from "vaul";
-import {
-  neighborsForVariant,
-  regionSide,
-  type BodyVariant,
-  type RegionId,
-} from "@/data/regions";
+import { regionSide, type BodyVariant, type RegionId } from "@/data/regions";
 import { useSession } from "@/store/session";
 import { en, regionLabel } from "@/i18n/en";
-import { regionAnchor } from "@/components/canvas/body-variants";
+import {
+  regionAnchor,
+  regionNeighbors,
+} from "@/components/canvas/body-variants";
 
 /**
  * Direction hint for an Adjust chip ("Higher — Left shoulder"), derived from
@@ -103,7 +101,7 @@ export function ConfirmSheet() {
                 <div className="mt-4">
                   <p className="text-chip text-slate">{en.confirm.adjustHint}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {neighborsForVariant(pending.regionId, variant).map(
+                    {regionNeighbors(variant, pending.regionId).map(
                       (neighborId) => (
                         <button
                           key={neighborId}
