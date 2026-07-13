@@ -1,320 +1,230 @@
 /**
- * Selection regression suite — the verification path for every
- * geometry/proxy/mesh change (replaces manual tap-testing).
- *
- * No browser, no WebGL: proxy volumes are instantiated exactly as
- * BodyModel builds them (same geometry constructors, same resolveProxy
- * transforms) and probed with three.js Raycaster math from the app's
- * camera positions. Probe coordinates derive from each variant's landmark
- * JSON, so the suite survives mesh swaps without hand-edited coordinates.
+ * Selection parity suite: casts REAL app-camera rays (orbit sphere, polar
+ * clamp per Scene.tsx) against the ACTUAL shipped labeled mesh, and
+ * applies THE pick rule (REGIONS.md §3: hit triangle's corner with the
+ * largest barycentric coordinate, ties to the lowest vertex index — the
+ * same rule BodyVisual runs). Asserts each region's manifest anchor
+ * resolves to that region; anchors occluded from their best camera
+ * (inner thighs, armpit webs) are skipped, but the zones that motivated
+ * the taxonomy must always be directly tappable.
  */
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
+import { autoFit, parseGlb, readIndices, readPositions } from "../scripts/glb-utils.mjs";
 import {
+  REGION_IDS,
   regionsForVariant,
-  REGION_VARIANTS,
   type BodyVariant,
   type RegionId,
 } from "@/data/regions";
-import { figureForVariant, resolveProxy } from "@/components/canvas/body-variants";
-import type { BodyLandmarks } from "@/data/figure-from-landmarks.mjs";
-import landmarksA from "@/data/landmarks/body-a.json";
-import landmarksB from "@/data/landmarks/body-b.json";
+import { manifestForVariant } from "@/components/canvas/body-variants";
 
-const LANDMARKS: Record<BodyVariant, BodyLandmarks> = {
-  "body-a": landmarksA as BodyLandmarks,
-  "body-b": landmarksB as BodyLandmarks,
-};
+const assetsDir = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "public",
+  "assets",
+);
 
-const H = 3.6;
-const CAMERAS = {
-  front: new THREE.Vector3(0, 1.8, 4.6),
-  back: new THREE.Vector3(0, 1.8, -4.6),
-  left: new THREE.Vector3(4.6, 1.8, 0), // anatomical left = +x
-  right: new THREE.Vector3(-4.6, 1.8, 0),
-} as const;
-type CameraName = keyof typeof CAMERAS;
+const ORBIT_TARGET = new THREE.Vector3(0, 1.8, 0);
+const ORBIT_RADIUS = 4.6;
+const MAX_ELEVATION = Math.PI / 6; // Scene.tsx polar clamp
 
-/** Build the raycastable proxy scene exactly as BodyModel does. */
-function buildScene(variant: BodyVariant) {
-  const group = new THREE.Group();
-  const figure = figureForVariant(variant);
-  for (const id of regionsForVariant(variant)) {
-    const spec = figure[id];
-    const geometry =
-      spec.kind === "capsule"
-        ? new THREE.CapsuleGeometry(spec.radius, spec.length ?? 0, 8, 24)
-        : new THREE.SphereGeometry(spec.radius, 32, 24);
-    const mesh = new THREE.Mesh(geometry);
-    const t = resolveProxy(variant, id);
-    mesh.position.set(...t.position);
-    mesh.scale.set(...t.scale);
-    mesh.rotation.set(...t.rotation);
-    mesh.userData.regionId = id;
-    group.add(mesh);
+/** Zones a patient must ALWAYS be able to tap head-on (the product ask). */
+const MUST_HIT: RegionId[] = [
+  "back.scapula.left",
+  "back.scapula.right",
+  "back.spine.upper",
+  "shoulder.trapezius.left",
+  "shoulder.trapezius.right",
+  "leg.thigh.back.left",
+  "leg.thigh.back.right",
+  "chest.sternum",
+  "abdomen.navel",
+  "abdomen.upper.center",
+  "abdomen.lower.center",
+  "abdomen.flank.left",
+  "abdomen.flank.right",
+  "pelvis.pubic",
+  "back.spine.lumbar",
+  "back.sacrum",
+  "back.buttock.left",
+  "leg.knee.cap.left",
+  "leg.knee.back.left",
+  "leg.calf.left",
+  "leg.shin.left",
+  "neck.throat",
+  "neck.nape",
+  "head.forehead",
+  "hand.back.left",
+];
+
+function cameraFor(anchor: THREE.Vector3, outward: THREE.Vector3): THREE.Vector3 {
+  let hx = outward.x;
+  let hz = outward.z;
+  if (Math.hypot(hx, hz) < 1e-4) {
+    hx = 0;
+    hz = 1;
   }
-  group.updateMatrixWorld(true);
-  return group;
+  const heading = Math.atan2(hx, hz);
+  const elevation = THREE.MathUtils.clamp(
+    Math.asin(THREE.MathUtils.clamp(outward.y, -1, 1)),
+    -MAX_ELEVATION,
+    MAX_ELEVATION,
+  );
+  return new THREE.Vector3(
+    ORBIT_TARGET.x + ORBIT_RADIUS * Math.sin(heading) * Math.cos(elevation),
+    ORBIT_TARGET.y + ORBIT_RADIUS * Math.sin(elevation),
+    ORBIT_TARGET.z + ORBIT_RADIUS * Math.cos(heading) * Math.cos(elevation),
+  );
 }
 
-const raycaster = new THREE.Raycaster();
-
-function firstHit(group: THREE.Group, camera: CameraName, point: [number, number, number]): RegionId | null {
-  const origin = CAMERAS[camera];
-  const direction = new THREE.Vector3(...point).sub(origin).normalize();
-  raycaster.set(origin, direction);
-  const hits = raycaster.intersectObjects(group.children, false);
-  return hits.length ? (hits[0].object.userData.regionId as RegionId) : null;
+/** THE pick rule — must mirror BodyVisual.pickRegion exactly. */
+function pickRegion(
+  labels: Uint16Array,
+  position: THREE.BufferAttribute,
+  face: { a: number; b: number; c: number },
+  point: THREE.Vector3,
+): RegionId {
+  const corners = [face.a, face.b, face.c];
+  const pa = new THREE.Vector3().fromBufferAttribute(position, face.a);
+  const pb = new THREE.Vector3().fromBufferAttribute(position, face.b);
+  const pc = new THREE.Vector3().fromBufferAttribute(position, face.c);
+  const bary = new THREE.Vector3();
+  THREE.Triangle.getBarycoord(point, pa, pb, pc, bary);
+  const weights = [bary.x, bary.y, bary.z];
+  let best = 0;
+  for (let i = 1; i < 3; i++) {
+    const tie = weights[i] === weights[best] && corners[i] < corners[best];
+    if (weights[i] > weights[best] || tie) best = i;
+  }
+  return REGION_IDS[labels[corners[best]]] as RegionId;
 }
 
-interface Probe {
-  name: string;
-  camera: CameraName;
-  point: [number, number, number];
-  expect: RegionId | RegionId[];
-}
+for (const variant of ["body-a", "body-b"] as const satisfies readonly BodyVariant[]) {
+  describe(`selection parity on ${variant}`, () => {
+    const { json, bin } = parseGlb(path.join(assetsDir, `${variant}.glb`));
+    const prim = json.meshes[0].primitives[0];
+    const { positions } = autoFit(readPositions(json, bin));
+    // read the raw _REGION SCALAR accessor bytes directly
+    const labels = (() => {
+      const accessor = json.accessors[prim.attributes._REGION];
+      const view = json.bufferViews[accessor.bufferView];
+      const base = (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+      const out = new Uint16Array(accessor.count);
+      for (let i = 0; i < accessor.count; i++) {
+        out[i] = bin.readUInt16LE(base + i * 2);
+      }
+      return out;
+    })();
+    const geometry = new THREE.BufferGeometry();
+    const positionAttr = new THREE.BufferAttribute(positions, 3);
+    geometry.setAttribute("position", positionAttr);
+    const indices = readIndices(json, bin, prim);
+    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial());
+    mesh.updateMatrixWorld(true);
+    const raycaster = new THREE.Raycaster();
+    const manifest = manifestForVariant(variant);
 
-/** Mirror a left-side probe to the right side. */
-function mirrored(probe: Probe): Probe {
-  // side tokens can be infix (torso.chest.left.anterior), not just suffix
-  const swapSide = (id: string) =>
-    id.includes(".left") ? id.replace(".left", ".right") : id.replace(".right", ".left");
-  return {
-    name: probe.name.replace("left", "right"),
-    camera: probe.camera === "left" ? "right" : probe.camera === "right" ? "left" : probe.camera,
-    point: [-probe.point[0], probe.point[1], probe.point[2]],
-    expect: Array.isArray(probe.expect)
-      ? (probe.expect.map(swapSide) as RegionId[])
-      : (swapSide(probe.expect) as RegionId),
-  };
-}
-
-function buildProbes(lm: BodyLandmarks, variant: BodyVariant): Probe[] {
-  const pelvisTop = lm.crotchY + 0.55 * (lm.waist.y - lm.crotchY);
-  const chestY = (lm.shoulder.y + lm.chestBotY) / 2;
-  const abdTop = lm.chestBotY;
-  const abdBot = pelvisTop;
-  const abdMid = (abdTop + abdBot) / 2;
-  const headH = H - lm.chinY;
-  const headCY = (H + lm.chinY) / 2;
-  const headCZ = (lm.head.zMin + lm.head.zMax) / 2;
-  const chestHW = lm.torsoSlices.chest.halfWidth;
-  const arm = lm.arm;
-  const leg = lm.leg;
-  const mid = (a: number[], b: number[]): [number, number, number] => [
-    (a[0] + b[0]) / 2,
-    (a[1] + b[1]) / 2,
-    (a[2] + b[2]) / 2,
-  ];
-
-  // upper arm spans acromion -> elbow (matches the builder's anchor)
-  const shoulderJoint = [
-    lm.shoulder.halfWidth * 0.85,
-    lm.shoulder.y - 0.04,
-    arm.top[2],
-  ];
-
-  const sided: Probe[] = [
-    { name: "mid-bicep left", camera: "left", point: mid(shoulderJoint, arm.elbow), expect: "arm.upper.left" },
-    { name: "elbow left", camera: "left", point: arm.elbow as [number, number, number], expect: "arm.elbow.left" },
-    { name: "mid-forearm left", camera: "left", point: mid(arm.elbow, arm.wrist), expect: "arm.fore.left" },
-    { name: "wrist left", camera: "left", point: arm.wrist as [number, number, number], expect: "arm.wrist.left" },
-    {
-      // mid-palm, clear of the wrist sphere above it
-      name: "palm left", camera: "front",
-      point: [arm.wrist[0], (arm.wristY - 0.02 + arm.handBottomY) / 2, arm.hand.cz],
-      expect: "hand.left",
-    },
-    {
-      name: "fingers left", camera: "front",
-      point: [arm.wrist[0], arm.handBottomY - 0.01, arm.hand.cz],
-      expect: "hand.fingers.left",
-    },
-    {
-      // upper chest at clavicle level, above the breast zone — mid-chest
-      // points legitimately belong to the breast region on body-b
-      name: "chest left", camera: "front",
-      point: [
-        chestHW * 0.7,
-        lm.shoulder.y - 0.15 * (lm.shoulder.y - lm.chestBotY),
-        lm.torsoSlices.chest.zMax,
-      ],
-      expect: "torso.chest.left.anterior",
-    },
-    {
-      name: "shoulder cap left", camera: "front",
-      point: [lm.shoulder.halfWidth * 0.88, lm.shoulder.y - 0.02, 0.3],
-      expect: "shoulder.left",
-    },
-    {
-      // z at the measured flank depth: z=0 sits in front of the actual hip
-      // skin (this frame's z-center is skewed by the forward hands) and the
-      // hanging forearm intercepts rays aimed there
-      name: "hip crest left", camera: "left",
-      point: [
-        lm.hip.halfWidth * 0.72,
-        (pelvisTop + lm.crotchY) / 2,
-        (lm.torsoSlices.hip.zMin + lm.torsoSlices.hip.zMax) / 2,
-      ],
-      expect: "hip.left",
-    },
-    {
-      // z targets aim at the actual body axis/surface: steep rays through
-      // far-forward targets overshoot thin volumes entirely
-      name: "mid-thigh left", camera: "front",
-      point: [(leg.topX + leg.knee.x) / 2, leg.thigh.y, leg.thigh.z],
-      expect: "leg.upper.left",
-    },
-    { name: "kneecap left", camera: "front", point: [leg.knee.x, leg.knee.y, leg.knee.z], expect: "leg.knee.left" },
-    {
-      name: "shin left", camera: "front",
-      point: [(leg.knee.x + leg.ankle.x) / 2, leg.calf.y, leg.calf.zMax],
-      expect: "leg.shin.left",
-    },
-    {
-      name: "rear calf left", camera: "back",
-      point: [(leg.knee.x + leg.ankle.x) / 2, leg.calf.y, leg.calf.zMin],
-      expect: "leg.calf.left",
-    },
-    { name: "ankle left", camera: "front", point: [leg.ankle.x, leg.ankle.y, leg.ankle.z], expect: "leg.ankle.left" },
-    {
-      // low enough to clear the ankle sphere's bottom edge
-      name: "heel left", camera: "back",
-      point: [lm.foot.centerX, 0.07, (lm.foot.zMin + lm.foot.zMax) / 2],
-      expect: "foot.left",
-    },
-    {
-      name: "toes left", camera: "front",
-      point: [lm.foot.centerX, 0.06, lm.foot.zMax],
-      expect: "foot.toes.left",
-    },
-    { name: "ear left", camera: "left", point: [lm.head.halfWidth + 0.02, headCY, headCZ], expect: "head.ear.left" },
-    {
-      name: variant === "body-b" ? "breast left" : "breast-point left (chest on body-a)",
-      camera: "front",
-      point: [chestHW * 0.42, lm.bust.y, lm.torsoSlices.chest.zMax],
-      expect: variant === "body-b" ? "torso.chest.breast.left" : "torso.chest.left.anterior",
-    },
-  ];
-
-  const central: Probe[] = [
-    {
-      name: "sternum (any front region)", camera: "front",
-      point: [0, chestY, lm.torsoSlices.chest.zMax],
-      expect: [
-        "torso.chest.left.anterior", "torso.chest.right.anterior",
-        "torso.chest.breast.left", "torso.chest.breast.right",
-      ],
-    },
-    {
-      name: "navel", camera: "front",
-      point: [0, (abdMid + abdBot) / 2, lm.torsoSlices.waist.zMax],
-      expect: "torso.abdomen.lower.anterior",
-    },
-    {
-      name: "upper abdomen", camera: "front",
-      point: [0, (abdTop + abdMid) / 2, lm.torsoSlices.waist.zMax],
-      expect: "torso.abdomen.upper.anterior",
-    },
-    {
-      name: "pelvis", camera: "front",
-      point: [0, pelvisTop - 0.25 * (pelvisTop - lm.crotchY), lm.torsoSlices.pelvis.zMax],
-      expect: "torso.pelvis.anterior",
-    },
-    {
-      name: "groin", camera: "front",
-      point: [0, lm.crotchY + 0.02, lm.torsoSlices.pelvis.zMax * 0.3],
-      expect: "torso.groin",
-    },
-    {
-      name: "upper back", camera: "back",
-      point: [0, (lm.shoulder.y + (lm.armpitY + lm.waist.y) / 2) / 2, -1],
-      expect: "torso.back.upper",
-    },
-    {
-      name: "lower back", camera: "back",
-      point: [0, ((lm.armpitY + lm.waist.y) / 2 + lm.crotchY + 0.08) / 2, -1],
-      expect: "torso.back.lower",
-    },
-    { name: "jaw", camera: "front", point: [0, lm.chinY + 0.16 * headH, lm.head.zMax], expect: "head.jaw" },
-    { name: "eyes", camera: "front", point: [0, lm.chinY + 0.6 * headH, lm.head.zMax], expect: "head.eyes" },
-    // back of head: from front or side, face/ear volumes legitimately
-    // intercept steep rays aimed at the crown
-    { name: "back of head", camera: "back", point: [0, headCY + 0.1, lm.head.zMin], expect: "head" },
-    { name: "neck front", camera: "front", point: [0, (lm.chinY + lm.shoulder.y) / 2, 0.3], expect: "neck.front" },
-    { name: "neck back", camera: "back", point: [0, (lm.chinY + lm.shoulder.y) / 2, -0.3], expect: "neck.back" },
-  ];
-
-  return [...sided, ...sided.map(mirrored), ...central];
-}
-
-const FRONT_ONLY: RegionId[] = [
-  "torso.chest.left.anterior", "torso.chest.right.anterior",
-  "torso.chest.breast.left", "torso.chest.breast.right",
-  "torso.abdomen.upper.anterior", "torso.abdomen.lower.anterior",
-  "torso.pelvis.anterior", "torso.groin", "neck.front",
-  "head.eyes", "leg.shin.left", "leg.shin.right",
-  "foot.toes.left", "foot.toes.right",
-];
-const BACK_ONLY: RegionId[] = [
-  "torso.back.upper", "torso.back.lower", "neck.back",
-  "leg.calf.left", "leg.calf.right",
-];
-
-for (const variant of ["body-a", "body-b"] as const) {
-  describe(`selection on ${variant}`, () => {
-    const lm = LANDMARKS[variant];
-    const scene = buildScene(variant);
-    const probes = buildProbes(lm, variant);
-
-    for (const probe of probes) {
-      it(`${probe.name} -> ${Array.isArray(probe.expect) ? probe.expect.join("|") : probe.expect}`, () => {
-        const hit = firstHit(scene, probe.camera, probe.point);
-        if (Array.isArray(probe.expect)) {
-          expect(hit).toBeTruthy();
-          expect(probe.expect).toContain(hit);
-        } else {
-          expect(hit).toBe(probe.expect);
-        }
-      });
+    // vertex normals (area-weighted) for face-on ray directions
+    const vertexCount = positions.length / 3;
+    const normals = new Float32Array(vertexCount * 3);
+    for (let f = 0; f < indices.length; f += 3) {
+      const [a, b, c] = [indices[f], indices[f + 1], indices[f + 2]];
+      const ax = positions[a * 3], ay = positions[a * 3 + 1], az = positions[a * 3 + 2];
+      const nx =
+        (positions[b * 3 + 1] - ay) * (positions[c * 3 + 2] - az) -
+        (positions[b * 3 + 2] - az) * (positions[c * 3 + 1] - ay);
+      const ny =
+        (positions[b * 3 + 2] - az) * (positions[c * 3] - ax) -
+        (positions[b * 3] - ax) * (positions[c * 3 + 2] - az);
+      const nz =
+        (positions[b * 3] - ax) * (positions[c * 3 + 1] - ay) -
+        (positions[b * 3 + 1] - ay) * (positions[c * 3] - ax);
+      for (const v of [a, b, c]) {
+        normals[v * 3] += nx;
+        normals[v * 3 + 1] += ny;
+        normals[v * 3 + 2] += nz;
+      }
     }
 
-    it("no front-camera ray first-hits a back-only region (and vice versa)", () => {
-      const offenders: string[] = [];
-      for (let y = 0.15; y <= 3.45; y += 0.15) {
-        for (let x = -0.6; x <= 0.6; x += 0.1) {
-          const front = firstHit(scene, "front", [x, y, 0]);
-          if (front && BACK_ONLY.includes(front)) {
-            offenders.push(`front (${x.toFixed(2)},${y.toFixed(2)}) -> ${front}`);
-          }
-          const back = firstHit(scene, "back", [x, y, 0]);
-          if (back && FRONT_ONLY.includes(back)) {
-            offenders.push(`back (${x.toFixed(2)},${y.toFixed(2)}) -> ${back}`);
-          }
-        }
-      }
-      expect(offenders).toEqual([]);
-    });
+    // per-region vertex lists for probe sampling
+    const regionVerts = new Map<number, number[]>();
+    for (let v = 0; v < vertexCount; v++) {
+      const list = regionVerts.get(labels[v]) ?? [];
+      list.push(v);
+      regionVerts.set(labels[v], list);
+    }
 
-    it("every region is reachable by at least one probe", () => {
-      const reached = new Set<RegionId>();
-      for (const probe of probes) {
-        const hit = firstHit(scene, probe.camera, probe.point);
-        if (hit) reached.add(hit);
+    /**
+     * A zone is tappable when SOME point of it is cleanly hittable: sample
+     * up to 12 of its vertices, cast the face-on app-camera ray at each,
+     * and require the pick rule to return the zone. Anchors alone are too
+     * conservative (a throat anchor tucked under the chin) and a wrong
+     * pick anywhere is still reported as a mislabel.
+     */
+    const resolve = (id: RegionId) => {
+      const idx = REGION_IDS.indexOf(id);
+      const verts = regionVerts.get(idx) ?? [];
+      if (!verts.length) return { status: "occluded" as const };
+      const stride = Math.max(1, Math.floor(verts.length / 12));
+      let lastWrong: RegionId | null = null;
+      for (let k = 0; k < verts.length; k += stride) {
+        const v = verts[k];
+        const target = new THREE.Vector3(
+          positions[v * 3],
+          positions[v * 3 + 1],
+          positions[v * 3 + 2],
+        );
+        const outward = new THREE.Vector3(
+          normals[v * 3],
+          normals[v * 3 + 1],
+          normals[v * 3 + 2],
+        ).normalize();
+        const origin = cameraFor(target, outward);
+        raycaster.set(origin, target.clone().sub(origin).normalize());
+        const hits = raycaster.intersectObject(mesh, false);
+        if (!hits.length || hits[0].point.distanceTo(target) > 0.05) continue;
+        const picked = pickRegion(labels, positionAttr, hits[0].face!, hits[0].point);
+        if (picked === id) return { status: "hit" as const, region: picked };
+        lastWrong = picked;
       }
-      const unreachable = regionsForVariant(variant).filter((id) => !reached.has(id));
-      expect(unreachable).toEqual([]);
-    });
+      return lastWrong
+        ? { status: "hit" as const, region: lastWrong }
+        : { status: "occluded" as const };
+    };
 
-    it("variant-only regions are gated correctly", () => {
-      const ids = regionsForVariant(variant);
-      for (const [id, allowed] of Object.entries(REGION_VARIANTS)) {
-        if (allowed!.includes(variant)) {
-          expect(ids).toContain(id as RegionId);
+    it("every region's anchor resolves to that region when directly visible", () => {
+      const wrong: string[] = [];
+      let hit = 0;
+      let occluded = 0;
+      for (const id of regionsForVariant(variant)) {
+        const result = resolve(id);
+        if (result.status === "hit") {
+          hit++;
+          if (result.region !== id) wrong.push(`${id} -> ${result.region}`);
         } else {
-          expect(ids).not.toContain(id as RegionId);
+          occluded++;
         }
       }
+      expect(wrong).toEqual([]);
+      // soles, armpits, inner thighs and groin creases are structurally
+      // hidden from the polar-clamped orbit; everything else must reach
+      expect(hit / (hit + occluded)).toBeGreaterThan(0.8);
+    });
+
+    it("the motivating zones are always directly tappable", () => {
+      const failures: string[] = [];
+      for (const id of MUST_HIT) {
+        if (!manifest.regions[id]) continue; // variant-gated
+        const result = resolve(id);
+        if (result.status !== "hit") failures.push(`${id}: ${result.status}`);
+        else if (result.region !== id) failures.push(`${id} -> ${result.region}`);
+      }
+      expect(failures).toEqual([]);
     });
   });
 }

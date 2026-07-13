@@ -126,3 +126,7 @@ and (c) reduces on-screen elements — then leave a `// SPEC-QUESTION:` comment.
 - `DESIGN.md` — visual system, 3D interaction spec, screen-by-screen UX. Exact tokens.
 - `PLANNING.md` — phases, architecture, data model, question layers, LLM contract,
   future roadmap (multilingual, FHIR, history chatbot).
+- `REGIONS.md` — the body-region system specification: taxonomy (~111 zones),
+  the baked per-vertex labeling pipeline, the frozen rule vocabulary, the
+  pick rule, and the add-a-zone recipe. Region work follows this document
+  mechanically; when code and REGIONS.md disagree, REGIONS.md wins.

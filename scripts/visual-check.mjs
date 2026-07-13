@@ -47,6 +47,19 @@ await page.waitForFunction(() => window.__wih !== undefined);
 await page.evaluate((v) => window.__wih.getState().setBodyVariant(v), variant);
 await page.waitForTimeout(3000); // glb load + first frames
 
+// VISUAL_CHECK_SPIN=<px>: horizontal drag to orbit the camera (e.g. 460
+// for roughly a half turn) before screenshotting
+const spin = Number(process.env.VISUAL_CHECK_SPIN ?? 0);
+if (spin) {
+  await page.mouse.move(240, 400);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) {
+    await page.mouse.move(240 + (spin * i) / 10, 400);
+  }
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+}
+
 await page.screenshot({ path: `${outDir}/_overview.png` });
 for (const region of REGIONS) {
   await page.evaluate((id) => window.__wih.getState().selectRegion(id), region);

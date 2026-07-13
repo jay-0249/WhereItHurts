@@ -159,10 +159,10 @@ intensity bucket→Severity.
 ## 6. 3D asset plan
 
 Phase 1 figure: two realistic body builds (internal keys `body-a` / `body-b`),
-each a single continuous glTF mesh. Selection does NOT depend on segmenting the
-visual mesh: interaction happens on an invisible proxy-volume layer keyed to
-region IDs (see DESIGN.md "Visual & interaction layer split"), so the visual
-asset needs no per-region material groups.
+each a single continuous glTF mesh at ~35k triangles. Region recognition is
+baked INTO the mesh: every vertex carries a region id (`_REGION` attribute)
+assigned at build time from declarative rules — see REGIONS.md for the full
+specification (taxonomy, labeling pipeline, pick rule, verification gates).
 
 Sources in order of preference:
 1. **Primary: MakeHuman (CC0).** Export the two builds as glTF binary. CC0
@@ -215,8 +215,11 @@ Next.js app
 └── lib/summary.ts            # LLM call, JSON validation, deterministic fallback
 ```
 
-Neighbor graph in `regions.ts` powers the "Adjust" chips (each region lists its
-adjacent regions for the higher/lower/toward-spine suggestions).
+The neighbor graph powering the "Adjust" chips is DERIVED, not hand-written:
+the label bake computes which regions share mesh edges and writes the
+adjacency into `src/data/region-manifest/` (plus curated overrides in
+`region-ids.mjs`). Pin anchors and per-region bounds come from the same
+manifests. See REGIONS.md.
 
 ## 8. Risks & mitigations
 

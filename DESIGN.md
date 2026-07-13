@@ -63,29 +63,28 @@ their pain, everything teal relates to actions they can take.
 - Selected region: translucent ember overlay + a thin 1.5px outline pass (`--ember`).
 - Hovered region (desktop): outline only, no fill, cursor pointer.
 
-### Visual & interaction layer split, and body variants
+### Region recognition: baked per-vertex labels (see REGIONS.md)
 
-- **Two decoupled layers.** The tappable regions are invisible proxy volumes
-  (capsules/spheres, one per region ID) on a dedicated raycast layer; taps only
-  ever test proxies. The realistic body is a single continuous glTF mesh in the
-  clay material, purely decorative, excluded from raycasting entirely. Region
-  segmentation lives in the proxy layer, so the visual asset needs no
-  per-region material groups.
-- **Selection highlight** = fragment tinting in the visual mesh's material:
-  the shader receives the active proxy volume as uniforms, computes each
-  fragment's signed distance to it, and tints inside fragments with
-  `--ember` at 35% (soft ~0.01-unit falloff at the boundary, 200ms fade-in
-  via a uniform). Hover (desktop) = the same tint at 15%. Because the wash
-  is literally part of the skin surface, it cannot spill past the
-  silhouette, show through from the far side, or detach from the body.
-  One volume is active at a time; selection takes precedence over hover.
+- **Paint-by-numbers skin.** Every vertex of the body mesh carries one of
+  ~111 doctor-grade region ids, baked at build time from declarative rules
+  (REGIONS.md is the authoritative spec). Taps raycast the mesh itself and
+  read the label off the hit triangle — coverage is total by construction,
+  and specificity matches a clinical pain chart (shoulder blade, between
+  the blades, trapezius ridge, 9-zone abdomen, hamstring, palm vs back of
+  hand, …).
+- **Selection highlight** = a per-vertex mask attribute mixed with
+  `--ember` in the fragment shader: 35% for the selected zone (200ms
+  fade-in), 15% for hover, with a naturally feathered one-triangle edge.
+  The wash is literally the labeled patch of skin — it cannot spill,
+  bleed through, or misalign. Never compare an interpolated region index
+  in the shader (REGIONS.md §4).
 - **Body variants.** Two body builds, internal keys `body-a` / `body-b`. UI
   copy NEVER uses gendered words ("male"/"female" are banned in user-facing
   strings). First visit shows a chooser — "Choose the body that looks most
   like yours" with the caption "You can change this anytime." — with two
   abstract figure thumbnails; a small chip on the canvas reopens it. Region
-  availability (e.g. breast regions) and pelvic region labels can vary per
-  variant via the region tree's `variants` field and the i18n dictionary.
+  availability (e.g. breast zones on body-b) is variant-gated in the
+  taxonomy and falls through to neighboring rules elsewhere.
 
 ### Typography
 
