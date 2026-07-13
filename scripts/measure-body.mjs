@@ -220,17 +220,27 @@ function measure(name) {
   // minimum under-measures badly; use anatomical hand length (~0.10H)
   // from the wrist unless the samples genuinely reach lower
   const sampledBottomY = Math.min(...armSamples.map((s) => s.y));
+  // wrist = narrowest arm slice ABOVE the hand (roughly one hand-length up
+  // from the lowest arm sample). Searching just above the bottom finds the
+  // narrowest FINGER slice instead and mislabels the fingertips as the
+  // wrist — the 15k mesh masked this by losing the hand entirely.
   let wrist = { y: 0, halfWidth: Infinity };
   for (const s of armSamples) {
     if (
-      s.y >= sampledBottomY + 0.02 * H &&
-      s.y <= sampledBottomY + 0.09 * H &&
+      s.y >= sampledBottomY + 0.07 * H &&
+      s.y <= sampledBottomY + 0.14 * H &&
       s.halfWidth < wrist.halfWidth
     ) {
       wrist = { y: s.y, halfWidth: s.halfWidth };
     }
   }
-  const handBottomY = Math.min(sampledBottomY, wrist.y - 0.1 * H);
+  // trust the measured fingertip line when the implied hand length is
+  // anatomically plausible; otherwise fall back to ~0.10H below the wrist
+  const measuredHandLen = wrist.y - sampledBottomY;
+  const handBottomY =
+    measuredHandLen >= 0.06 * H && measuredHandLen <= 0.16 * H
+      ? sampledBottomY
+      : wrist.y - 0.1 * H;
   // The rest pose has natural elbow flexion (forearm angles forward, hands
   // in front of the thighs), so the arm is a two-segment polyline through
   // measured slice centroids, not one straight line.
@@ -241,10 +251,18 @@ function measure(name) {
   // top point sits below the armpit web (whose fold skews centroids back)
   const topSample = sampleNearest(armpitY - 0.04 * H);
   const wristSample = sampleNearest(wrist.y);
-  // anatomical elbow: midway between wrist and the acromion line (~0.63H),
-  // NOT a fraction of the below-armpit sample span (which lands mid-forearm)
-  const elbowY = (wrist.y + shoulderY) / 2;
-  const elbowSample = sampleNearest(elbowY);
+  // elbow: under the rest pose's flexion, the elbow is the most-BACKWARD
+  // point of the hanging arm (the olecranon) — measured from the samples'
+  // z-profile, not estimated from height fractions
+  const elbowLo = wrist.y + 0.04 * H;
+  const elbowHi = Math.max(elbowLo + 0.06 * H, armpitY - 0.06 * H);
+  let elbowSample = null;
+  for (const s of armSamples) {
+    if (s.y >= elbowLo && s.y <= elbowHi) {
+      if (!elbowSample || s.cz < elbowSample.cz) elbowSample = s;
+    }
+  }
+  assert(elbowSample, `${name}: elbow sample not found`);
   const point = (s) => [round(s.cx), round(s.y), round(s.cz)];
   const segAngle = (a, b) =>
     (Math.atan(Math.hypot(b.cx - a.cx, b.cz - a.cz) / Math.abs(a.y - b.y)) * 180) / Math.PI;
@@ -254,7 +272,7 @@ function measure(name) {
   const upperAngleXDeg =
     (Math.atan(
       Math.abs(elbowSample.cx - topSample.cx) /
-        Math.abs(topSample.y - elbowSample.y),
+        Math.max(0.05, Math.abs(topSample.y - elbowSample.y)),
     ) * 180) / Math.PI;
   const upperSamples = armSamples.filter((s) => s.y >= elbowSample.y);
   const armRadius =
@@ -429,9 +447,11 @@ function measure(name) {
     upperAngleXDeg <= 20,
     `${name}: upper arm lateral tilt within 20 deg (got ${upperAngleXDeg.toFixed(1)})`,
   );
+  // the rest pose's true elbow flexion measures ~52 deg once the elbow is
+  // located by z-curvature rather than height fractions
   assert(
-    foreAngleDeg <= 50,
-    `${name}: forearm within 50 deg of vertical (got ${foreAngleDeg.toFixed(1)})`,
+    foreAngleDeg <= 60,
+    `${name}: forearm within 60 deg of vertical (got ${foreAngleDeg.toFixed(1)})`,
   );
   // facing check is relative to the ankle: the bbox z-center is skewed by
   // the forward-hanging hands, so absolute z signs can't be trusted

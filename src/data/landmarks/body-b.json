@@ -2,132 +2,132 @@
   "variant": "body-b",
   "height": 3.6,
   "fit": {
-    "scale": 2.196418,
+    "scale": 2.198863,
     "center": [
-      0.000012,
-      0.000031,
-      0.113984
+      0.000022,
+      0.000624,
+      0.114529
     ]
   },
-  "armpitY": 2.376,
+  "armpitY": 2.412,
   "shoulder": {
-    "y": 2.7,
-    "halfWidth": 0.4832
+    "y": 2.736,
+    "halfWidth": 0.479
   },
   "crotchY": 1.62,
-  "chestBotY": 2.214,
+  "chestBotY": 2.223,
   "waist": {
     "y": 2.16,
-    "halfWidth": 0.3522
+    "halfWidth": 0.3562
   },
   "hip": {
     "y": 1.728,
-    "halfWidth": 0.3988
+    "halfWidth": 0.3993
   },
   "torsoSlices": {
     "chest": {
-      "y": 2.457,
-      "halfWidth": 0.3574,
-      "zMin": -0.3692,
-      "zMax": 0.0964
+      "y": 2.4795,
+      "halfWidth": 0.3593,
+      "zMin": -0.3816,
+      "zMax": 0.11
     },
     "waist": {
       "y": 2.16,
-      "halfWidth": 0.3522,
-      "zMin": -0.3631,
-      "zMax": 0.0586
+      "halfWidth": 0.3562,
+      "zMin": -0.3634,
+      "zMax": 0.0546
     },
     "hip": {
       "y": 1.728,
-      "halfWidth": 0.3988,
-      "zMin": -0.4346,
-      "zMax": 0.0171
+      "halfWidth": 0.3993,
+      "zMin": -0.4436,
+      "zMax": 0.0183
     },
     "pelvis": {
       "y": 1.7685,
-      "halfWidth": 0.3988,
-      "zMin": -0.453,
-      "zMax": 0.015
+      "halfWidth": 0.3993,
+      "zMin": -0.4511,
+      "zMax": 0.0133
     }
   },
   "bust": {
     "y": 2.52,
-    "zMax": 0.1217,
-    "x": 0.1738
+    "zMax": 0.12,
+    "x": 0.1786
   },
   "neck": {
     "y": 3.168,
-    "halfWidth": 0.1285,
-    "zMin": -0.2952,
-    "zMax": 0.081
+    "halfWidth": 0.1267,
+    "zMin": -0.2972,
+    "zMax": 0.0791
   },
   "chinY": 3.204,
   "head": {
-    "halfWidth": 0.1822,
-    "zMin": -0.3552,
-    "zMax": 0.0956
+    "halfWidth": 0.1794,
+    "zMin": -0.3532,
+    "zMax": 0.0938
   },
   "arm": {
-    "wristY": 1.692,
-    "wristRadius": 0.0348,
-    "handBottomY": 1.332,
-    "radius": 0.0929,
-    "upperAngleDeg": 58.9133,
-    "foreAngleDeg": 37.4121,
+    "wristY": 2.052,
+    "wristRadius": 0.0684,
+    "handBottomY": 1.62,
+    "radius": 0.0963,
+    "upperAngleDeg": 25.4191,
+    "foreAngleDeg": 42.4696,
     "top": [
-      0.478,
-      2.232,
-      -0.1228
+      0.4732,
+      2.268,
+      -0.1321
     ],
     "elbow": [
-      0.4879,
-      2.196,
-      -0.0639
+      0.4476,
+      2.376,
+      -0.1766
     ],
     "wrist": [
-      0.5478,
-      1.692,
-      0.3169
+      0.5196,
+      2.052,
+      0.1111
     ],
     "hand": {
-      "cz": 0.3169,
-      "zHalf": 0.0994
+      "cz": 0.316,
+      "zHalf": 0.0988
     }
   },
   "leg": {
-    "topX": 0.2364,
-    "topZ": -0.205,
+    "topX": 0.2346,
+    "topZ": -0.207,
     "thigh": {
-      "y": 1.2985,
-      "x": 0.2571,
-      "z": -0.1455,
-      "radius": 0.1495
+      "y": 1.2901,
+      "x": 0.2529,
+      "z": -0.1461,
+      "radius": 0.1505
     },
     "knee": {
-      "y": 0.977,
-      "x": 0.3132,
-      "z": -0.1859,
-      "radius": 0.13
+      "y": 0.9601,
+      "x": 0.3193,
+      "z": -0.1921,
+      "radius": 0.1297
     },
     "calf": {
-      "y": 0.6145,
-      "x": 0.3615,
-      "radius": 0.1126,
-      "zMin": -0.3405,
-      "zMax": -0.1095
+      "y": 0.5881,
+      "x": 0.3631,
+      "radius": 0.1106,
+      "zMin": -0.3457,
+      "zMax": -0.1209
     },
     "ankle": {
-      "y": 0.252,
-      "x": 0.3927,
-      "z": -0.201,
-      "radius": 0.0572
+      "y": 0.216,
+      "x": 0.3973,
+      "z": -0.1757,
+      "radius": 0.0576
     }
   },
   "foot": {
     "centerX": 0.4035,
-    "halfWidth": 0.0986,
-    "zMin": -0.3011,
-    "zMax": 0.1968,
+    "halfWidth": 0.0967,
+    "zMin": -0.2993,
+    "zMax": 0.1952,
     "topY": 0.198
   }
 }

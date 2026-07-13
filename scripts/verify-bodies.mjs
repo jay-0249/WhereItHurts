@@ -22,8 +22,8 @@ import {
   TARGET_HEIGHT,
 } from "./glb-utils.mjs";
 
-const TRI_MIN = 10_000;
-const TRI_MAX = 20_000;
+const TRI_MIN = 30_000;
+const TRI_MAX = 40_000;
 // Height:width sanity for a standing human. The bbox includes arms, which
 // hang at 12 deg (the landmark measurement needs an x-gap between arm and
 // torso), so real exports measure ~2.5-3.4:1. The floor exists to catch a

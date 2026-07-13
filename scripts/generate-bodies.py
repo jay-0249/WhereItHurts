@@ -50,8 +50,13 @@ VARIANTS = {
     },
 }
 
-TRI_TARGET = 15000
-TRI_MIN, TRI_MAX = 10000, 20000
+# ~35k budget: enough that hands/face/feet keep real geometry (15k
+# collapsed the hand to a 0.03-unit blob in landmark measurement) and
+# region boundaries quantize at ~1cm. The base mesh is only ~27k tris, so
+# a level-1 subdivision (-> ~107k, also smoothing the surface) runs before
+# decimation.
+TRI_TARGET = 35000
+TRI_MIN, TRI_MAX = 30000, 40000
 OUT_DIR = Path(__file__).resolve().parent / "out"
 
 
@@ -176,7 +181,11 @@ def main() -> None:
             bpy.data.objects.remove(obj, do_unlink=True)
     print(f"removed non-body objects: {removed if removed else 'none'}")
 
-    # 4. decimate into budget (ratio ~ output/input for collapse mode)
+    # 4. subdivide (smooths + densifies past the ~27k source), then
+    #    decimate into budget (ratio ~ output/input for collapse mode)
+    subdiv = basemesh.modifiers.new("Subdiv", "SUBSURF")
+    subdiv.levels = 1
+    subdiv.render_levels = 1
     tris_before = evaluated_tri_count(basemesh)
     modifier = basemesh.modifiers.new("Decimate", "DECIMATE")
     modifier.ratio = min(1.0, TRI_TARGET / tris_before)
