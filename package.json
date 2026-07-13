@@ -7,7 +7,8 @@
     "build": "vitest run && next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bake": "node scripts/bake-labels.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

@@ -1,74 +1,36 @@
 /**
- * Region tree for the segmented body (PLANNING.md §7).
+ * Doctor-grade region taxonomy (~111 zones) — see REGIONS.md for the full
+ * specification of IDs, labeling rules, and change policy.
  *
- * IDs are stable, hierarchical strings — selection logic keys on these,
- * never on mesh names or indices (CLAUDE.md hard rule). Labels resolve
- * through the i18n dictionary. Front and back are distinct regions for
- * the torso; calf (back) and shin (front) are distinct for the lower leg.
- * Fingers and toes are single regions per side, not per digit.
+ * IDs are stable, hierarchical, APPEND-ONLY strings; selection logic keys
+ * on these, never on mesh names or indices (CLAUDE.md hard rule). Sides
+ * are encoded as `.left` / `.right` suffixes (the patient's own side —
+ * regionSide() depends on this convention). Labels resolve through the
+ * i18n dictionary. Renames go through DEPRECATED_REGIONS, never in place.
+ *
+ * Region membership of each mesh vertex is baked at build time by
+ * scripts/bake-labels.mjs from the rules in src/data/region-rules.mjs;
+ * the neighbor graph, pin anchors, and per-region bounds are derived
+ * artifacts in src/data/region-manifest/.
  */
 
-export const REGION_IDS = [
-  // head & neck
-  "head",
-  "head.ear.left",
-  "head.ear.right",
-  "head.eyes",
-  "head.jaw",
-  "neck.front",
-  "neck.back",
-  // torso, front
-  "torso.chest.left.anterior",
-  "torso.chest.right.anterior",
-  "torso.chest.breast.left",
-  "torso.chest.breast.right",
-  "torso.abdomen.upper.anterior",
-  "torso.abdomen.lower.anterior",
-  "torso.pelvis.anterior",
-  "torso.groin",
-  // torso, back
-  "torso.back.upper",
-  "torso.back.lower",
-  // arms
-  "shoulder.left",
-  "shoulder.right",
-  "arm.upper.left",
-  "arm.upper.right",
-  "arm.elbow.left",
-  "arm.elbow.right",
-  "arm.fore.left",
-  "arm.fore.right",
-  "arm.wrist.left",
-  "arm.wrist.right",
-  "hand.left",
-  "hand.right",
-  "hand.fingers.left",
-  "hand.fingers.right",
-  // hips & legs
-  "hip.left",
-  "hip.right",
-  "leg.upper.left",
-  "leg.upper.right",
-  "leg.knee.left",
-  "leg.knee.right",
-  "leg.calf.left",
-  "leg.calf.right",
-  "leg.shin.left",
-  "leg.shin.right",
-  "leg.ankle.left",
-  "leg.ankle.right",
-  "foot.left",
-  "foot.right",
-  "foot.toes.left",
-  "foot.toes.right",
-] as const;
+import {
+  ADJACENCY_OVERRIDES as OVERRIDES,
+  REGION_IDS as IDS,
+  REGION_VARIANTS as VARIANT_GATES,
+} from "./region-ids.mjs";
 
-export type RegionId = (typeof REGION_IDS)[number];
+/**
+ * Canonical id list lives in region-ids.mjs (shared with the Node bake
+ * scripts); the .d.mts declares the literal tuple so RegionId stays a
+ * precise union here.
+ */
+export const REGION_IDS = IDS;
+export type RegionId = (typeof IDS)[number];
 
 /**
  * Body build variants. Internal keys only — user-facing copy never uses
- * gendered words (see DESIGN.md). body-a = broader-shouldered build,
- * body-b = wider-hipped build with breast regions.
+ * gendered words (see DESIGN.md).
  */
 export const BODY_VARIANT_IDS = ["body-a", "body-b"] as const;
 export type BodyVariant = (typeof BODY_VARIANT_IDS)[number];
@@ -87,65 +49,153 @@ export type RegionGroup =
   | "skin-surface";
 
 export const REGION_GROUPS: Record<RegionId, RegionGroup> = {
-  head: "head",
+  "head.crown": "head",
+  "head.back": "head",
+  "head.forehead": "head",
+  "head.temple.left": "head",
+  "head.temple.right": "head",
+  "head.eye.left": "head",
+  "head.eye.right": "head",
   "head.ear.left": "head",
   "head.ear.right": "head",
-  "head.eyes": "head",
-  "head.jaw": "head",
-  "neck.front": "neck",
-  "neck.back": "neck",
-  "torso.chest.left.anterior": "chest",
-  "torso.chest.right.anterior": "chest",
-  "torso.chest.breast.left": "chest",
-  "torso.chest.breast.right": "chest",
-  "torso.abdomen.upper.anterior": "abdomen",
-  "torso.abdomen.lower.anterior": "abdomen",
-  "torso.pelvis.anterior": "abdomen",
-  "torso.groin": "abdomen",
-  "torso.back.upper": "back-upper",
-  "torso.back.lower": "back-lower",
-  "shoulder.left": "joints",
-  "shoulder.right": "joints",
-  "arm.upper.left": "limbs",
-  "arm.upper.right": "limbs",
-  "arm.elbow.left": "joints",
-  "arm.elbow.right": "joints",
-  "arm.fore.left": "limbs",
-  "arm.fore.right": "limbs",
+  "head.cheek.left": "head",
+  "head.cheek.right": "head",
+  "head.nose": "head",
+  "head.mouth": "head",
+  "head.jaw.left": "head",
+  "head.jaw.right": "head",
+  "neck.throat": "neck",
+  "neck.side.left": "neck",
+  "neck.side.right": "neck",
+  "neck.nape": "neck",
+  "shoulder.collarbone.left": "chest",
+  "shoulder.collarbone.right": "chest",
+  "shoulder.trapezius.left": "back-upper",
+  "shoulder.trapezius.right": "back-upper",
+  "shoulder.cap.left": "joints",
+  "shoulder.cap.right": "joints",
+  "chest.sternum": "chest",
+  "chest.pec.left": "chest",
+  "chest.pec.right": "chest",
+  "chest.breast.left": "chest",
+  "chest.breast.right": "chest",
+  "chest.ribs.lower.left": "chest",
+  "chest.ribs.lower.right": "chest",
+  "abdomen.upper.right": "abdomen",
+  "abdomen.upper.center": "abdomen",
+  "abdomen.upper.left": "abdomen",
+  "abdomen.flank.right": "abdomen",
+  "abdomen.navel": "abdomen",
+  "abdomen.flank.left": "abdomen",
+  "abdomen.lower.right": "abdomen",
+  "abdomen.lower.center": "abdomen",
+  "abdomen.lower.left": "abdomen",
+  "pelvis.pubic": "abdomen",
+  "pelvis.groin.left": "abdomen",
+  "pelvis.groin.right": "abdomen",
+  "back.spine.upper": "back-upper",
+  "back.scapula.left": "back-upper",
+  "back.scapula.right": "back-upper",
+  "back.mid.left": "back-upper",
+  "back.mid.right": "back-upper",
+  "back.spine.mid": "back-upper",
+  "back.spine.lumbar": "back-lower",
+  "back.lower.left": "back-lower",
+  "back.lower.right": "back-lower",
+  "back.sacrum": "back-lower",
+  "back.tailbone": "back-lower",
+  "back.buttock.left": "back-lower",
+  "back.buttock.right": "back-lower",
+  "hip.side.left": "joints",
+  "hip.side.right": "joints",
+  "arm.armpit.left": "limbs",
+  "arm.armpit.right": "limbs",
+  "arm.biceps.left": "limbs",
+  "arm.biceps.right": "limbs",
+  "arm.triceps.left": "limbs",
+  "arm.triceps.right": "limbs",
+  "arm.elbow.crease.left": "joints",
+  "arm.elbow.crease.right": "joints",
+  "arm.elbow.point.left": "joints",
+  "arm.elbow.point.right": "joints",
+  "arm.forearm.inner.left": "limbs",
+  "arm.forearm.inner.right": "limbs",
+  "arm.forearm.outer.left": "limbs",
+  "arm.forearm.outer.right": "limbs",
   "arm.wrist.left": "joints",
   "arm.wrist.right": "joints",
-  "hand.left": "hands-feet",
-  "hand.right": "hands-feet",
+  "hand.palm.left": "hands-feet",
+  "hand.palm.right": "hands-feet",
+  "hand.back.left": "hands-feet",
+  "hand.back.right": "hands-feet",
+  "hand.thumb.left": "hands-feet",
+  "hand.thumb.right": "hands-feet",
   "hand.fingers.left": "hands-feet",
   "hand.fingers.right": "hands-feet",
-  "hip.left": "joints",
-  "hip.right": "joints",
-  "leg.upper.left": "limbs",
-  "leg.upper.right": "limbs",
-  "leg.knee.left": "joints",
-  "leg.knee.right": "joints",
-  "leg.calf.left": "limbs",
-  "leg.calf.right": "limbs",
+  "leg.thigh.front.left": "limbs",
+  "leg.thigh.front.right": "limbs",
+  "leg.thigh.back.left": "limbs",
+  "leg.thigh.back.right": "limbs",
+  "leg.thigh.inner.left": "limbs",
+  "leg.thigh.inner.right": "limbs",
+  "leg.thigh.outer.left": "limbs",
+  "leg.thigh.outer.right": "limbs",
+  "leg.knee.cap.left": "joints",
+  "leg.knee.cap.right": "joints",
+  "leg.knee.back.left": "joints",
+  "leg.knee.back.right": "joints",
   "leg.shin.left": "limbs",
   "leg.shin.right": "limbs",
-  "leg.ankle.left": "joints",
-  "leg.ankle.right": "joints",
-  "foot.left": "hands-feet",
-  "foot.right": "hands-feet",
+  "leg.calf.left": "limbs",
+  "leg.calf.right": "limbs",
+  "leg.ankle.inner.left": "joints",
+  "leg.ankle.inner.right": "joints",
+  "leg.ankle.outer.left": "joints",
+  "leg.ankle.outer.right": "joints",
+  "foot.heel.left": "hands-feet",
+  "foot.heel.right": "hands-feet",
+  "foot.sole.left": "hands-feet",
+  "foot.sole.right": "hands-feet",
+  "foot.top.left": "hands-feet",
+  "foot.top.right": "hands-feet",
   "foot.toes.left": "hands-feet",
   "foot.toes.right": "hands-feet",
 };
 
+/** Picker sections (accessible list path, DESIGN.md §3.6). */
+export type RegionArea =
+  | "head"
+  | "neck"
+  | "shoulders"
+  | "chest"
+  | "belly"
+  | "pelvis"
+  | "back"
+  | "hips"
+  | "arms"
+  | "legs";
+
+export function regionArea(id: RegionId): RegionArea {
+  if (id.startsWith("head.")) return "head";
+  if (id.startsWith("neck.")) return "neck";
+  if (id.startsWith("shoulder.")) return "shoulders";
+  if (id.startsWith("chest.")) return "chest";
+  if (id.startsWith("abdomen.")) return "belly";
+  if (id.startsWith("pelvis.")) return "pelvis";
+  if (id.startsWith("back.")) return "back";
+  if (id.startsWith("hip.")) return "hips";
+  if (id.startsWith("arm.") || id.startsWith("hand.")) return "arms";
+  return "legs";
+}
+
 /**
  * Regions available only on specific body variants. Absent = available on
- * all variants.
+ * all variants. On variants without a region, its labeling rule is absent
+ * and the surface falls through to the next rule (see REGIONS.md §9).
  */
 export const REGION_VARIANTS: Partial<
   Record<RegionId, readonly BodyVariant[]>
-> = {
-  "torso.chest.breast.left": ["body-b"],
-  "torso.chest.breast.right": ["body-b"],
-};
+> = VARIANT_GATES;
 
 export function regionAvailableFor(id: RegionId, variant: BodyVariant): boolean {
   const restriction = REGION_VARIANTS[id];
@@ -157,110 +207,62 @@ export function regionsForVariant(variant: BodyVariant): RegionId[] {
 }
 
 /**
- * Adjacency, declared once per pair; the exported NEIGHBORS map is built
- * symmetrically so the graph can never drift one-sided.
+ * Adjacency is auto-derived at bake time (regions sharing >= 3 mesh edges).
+ * These overrides add clinically useful non-touching neighbor chips and
+ * remove mesh-artifact adjacencies. Pairs are symmetric.
  */
-const EDGES: ReadonlyArray<readonly [RegionId, RegionId]> = [
-  // head
-  ["head", "neck.front"],
-  ["head", "neck.back"],
-  ["head", "head.ear.left"],
-  ["head", "head.ear.right"],
-  ["head", "head.eyes"],
-  ["head", "head.jaw"],
-  ["head.eyes", "head.jaw"],
-  ["head.jaw", "head.ear.left"],
-  ["head.jaw", "head.ear.right"],
-  ["head.jaw", "neck.front"],
-  // neck
-  ["neck.front", "neck.back"],
-  ["neck.front", "torso.chest.left.anterior"],
-  ["neck.front", "torso.chest.right.anterior"],
-  ["neck.back", "torso.back.upper"],
-  // chest
-  ["torso.chest.left.anterior", "torso.chest.right.anterior"],
-  ["torso.chest.left.anterior", "torso.abdomen.upper.anterior"],
-  ["torso.chest.right.anterior", "torso.abdomen.upper.anterior"],
-  ["torso.chest.left.anterior", "shoulder.left"],
-  ["torso.chest.right.anterior", "shoulder.right"],
-  ["torso.chest.breast.left", "torso.chest.left.anterior"],
-  ["torso.chest.breast.right", "torso.chest.right.anterior"],
-  ["torso.chest.breast.left", "torso.chest.breast.right"],
-  ["torso.chest.breast.left", "torso.abdomen.upper.anterior"],
-  ["torso.chest.breast.right", "torso.abdomen.upper.anterior"],
-  // abdomen & pelvis
-  ["torso.abdomen.upper.anterior", "torso.abdomen.lower.anterior"],
-  ["torso.abdomen.lower.anterior", "torso.pelvis.anterior"],
-  ["torso.abdomen.lower.anterior", "hip.left"],
-  ["torso.abdomen.lower.anterior", "hip.right"],
-  ["torso.pelvis.anterior", "torso.groin"],
-  ["torso.pelvis.anterior", "hip.left"],
-  ["torso.pelvis.anterior", "hip.right"],
-  ["torso.groin", "hip.left"],
-  ["torso.groin", "hip.right"],
-  ["torso.groin", "leg.upper.left"],
-  ["torso.groin", "leg.upper.right"],
-  // back
-  ["torso.back.upper", "shoulder.left"],
-  ["torso.back.upper", "shoulder.right"],
-  ["torso.back.upper", "torso.back.lower"],
-  ["torso.back.lower", "torso.abdomen.upper.anterior"],
-  ["torso.back.lower", "torso.abdomen.lower.anterior"],
-  ["torso.back.lower", "hip.left"],
-  ["torso.back.lower", "hip.right"],
-  // arm chains
-  ["shoulder.left", "arm.upper.left"],
-  ["shoulder.right", "arm.upper.right"],
-  ["arm.upper.left", "arm.elbow.left"],
-  ["arm.upper.right", "arm.elbow.right"],
-  ["arm.elbow.left", "arm.fore.left"],
-  ["arm.elbow.right", "arm.fore.right"],
-  ["arm.fore.left", "arm.wrist.left"],
-  ["arm.fore.right", "arm.wrist.right"],
-  ["arm.wrist.left", "hand.left"],
-  ["arm.wrist.right", "hand.right"],
-  ["hand.left", "hand.fingers.left"],
-  ["hand.right", "hand.fingers.right"],
-  // hips & leg chains
-  ["hip.left", "hip.right"],
-  ["hip.left", "leg.upper.left"],
-  ["hip.right", "leg.upper.right"],
-  ["leg.upper.left", "leg.knee.left"],
-  ["leg.upper.right", "leg.knee.right"],
-  ["leg.knee.left", "leg.calf.left"],
-  ["leg.knee.right", "leg.calf.right"],
-  ["leg.knee.left", "leg.shin.left"],
-  ["leg.knee.right", "leg.shin.right"],
-  ["leg.calf.left", "leg.shin.left"],
-  ["leg.calf.right", "leg.shin.right"],
-  ["leg.calf.left", "leg.ankle.left"],
-  ["leg.calf.right", "leg.ankle.right"],
-  ["leg.shin.left", "leg.ankle.left"],
-  ["leg.shin.right", "leg.ankle.right"],
-  ["leg.ankle.left", "foot.left"],
-  ["leg.ankle.right", "foot.right"],
-  ["foot.left", "foot.toes.left"],
-  ["foot.right", "foot.toes.right"],
-];
+export const ADJACENCY_OVERRIDES = OVERRIDES as {
+  add: ReadonlyArray<readonly [RegionId, RegionId]>;
+  remove: ReadonlyArray<readonly [RegionId, RegionId]>;
+};
 
-export const NEIGHBORS: Record<RegionId, RegionId[]> = (() => {
-  const map = Object.fromEntries(
-    REGION_IDS.map((id) => [id, [] as RegionId[]]),
-  ) as Record<RegionId, RegionId[]>;
-  for (const [a, b] of EDGES) {
-    map[a].push(b);
-    map[b].push(a);
-  }
-  return map;
-})();
-
-/** Neighbors filtered to regions that exist on the given variant. */
-export function neighborsForVariant(
-  id: RegionId,
-  variant: BodyVariant,
-): RegionId[] {
-  return NEIGHBORS[id].filter((n) => regionAvailableFor(n, variant));
-}
+/**
+ * Old (pre-taxonomy) region ids -> nearest current id. Used by the store
+ * migration for pins persisted in an in-flight session, and kept as the
+ * historical record of renames (REGIONS.md §7: ids are append-only).
+ */
+export const DEPRECATED_REGIONS: Record<string, RegionId> = {
+  head: "head.crown",
+  "head.eyes": "head.nose",
+  "head.jaw": "head.mouth",
+  "neck.front": "neck.throat",
+  "neck.back": "neck.nape",
+  "torso.chest.left.anterior": "chest.pec.left",
+  "torso.chest.right.anterior": "chest.pec.right",
+  "torso.chest.breast.left": "chest.breast.left",
+  "torso.chest.breast.right": "chest.breast.right",
+  "torso.abdomen.anterior": "abdomen.navel",
+  "torso.abdomen.upper.anterior": "abdomen.upper.center",
+  "torso.abdomen.lower.anterior": "abdomen.lower.center",
+  "torso.pelvis.anterior": "pelvis.pubic",
+  "torso.groin": "pelvis.pubic",
+  "torso.back.upper": "back.spine.upper",
+  "torso.back.lower": "back.spine.lumbar",
+  "shoulder.left": "shoulder.cap.left",
+  "shoulder.right": "shoulder.cap.right",
+  "arm.left": "arm.biceps.left",
+  "arm.right": "arm.biceps.right",
+  "arm.upper.left": "arm.biceps.left",
+  "arm.upper.right": "arm.biceps.right",
+  "arm.elbow.left": "arm.elbow.point.left",
+  "arm.elbow.right": "arm.elbow.point.right",
+  "arm.fore.left": "arm.forearm.outer.left",
+  "arm.fore.right": "arm.forearm.outer.right",
+  "hand.left": "hand.palm.left",
+  "hand.right": "hand.palm.right",
+  "hip.left": "hip.side.left",
+  "hip.right": "hip.side.right",
+  "leg.upper.left": "leg.thigh.front.left",
+  "leg.upper.right": "leg.thigh.front.right",
+  "leg.lower.left": "leg.shin.left",
+  "leg.lower.right": "leg.shin.right",
+  "leg.knee.left": "leg.knee.cap.left",
+  "leg.knee.right": "leg.knee.cap.right",
+  "leg.ankle.left": "leg.ankle.outer.left",
+  "leg.ankle.right": "leg.ankle.outer.right",
+  "foot.left": "foot.top.left",
+  "foot.right": "foot.top.right",
+};
 
 export function isRegionId(id: string): id is RegionId {
   return (REGION_IDS as readonly string[]).includes(id);
